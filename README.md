@@ -1,4 +1,4 @@
-# 🌐 Cyber Smash AI Arena
+# 🌐 Ai Smash Bros
 
 A zero-player, fully autonomous 2D platform fighter simulation inspired by *Super Smash Bros*. Built entirely in vanilla JavaScript and HTML5 Canvas inside a single file. Two distinct AI agents battle endlessly on a floating stage using linear physics, directional state loops, and instant knockback scaling vectors.
 
