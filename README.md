@@ -8,9 +8,7 @@ A zero-player, fully autonomous 2D platform fighter simulation inspired by *Supe
 
 Because this project uses vanilla technologies, it requires **no installation, no Node.js dependencies, and no local build steps**.
 
-1. Save the source code into a file named `index.html`.
-2. Double-click `index.html` to open it instantly in any modern web browser (Chrome, Safari, Firefox, Edge).
-
+All you need to do is go here to launch the game:
 ---
 
 ## 🎮 Features
