@@ -25,4 +25,4 @@ All you need to do is go here to launch the game:
 Everything is contained neatly inside a single ecosystem for frictionless editing:
 
 
-Fully vibecoded.
+Fully vibecoded with Deepseek v4.1 flash.
