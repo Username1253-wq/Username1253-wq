@@ -1,1 +1,2963 @@
-nothing to see here yet! Come back soon for more code!
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NEON BRAWL // Zero-Player Platform Fighter</title>
+<style>
+  :root {
+    /* ---- Sunset sky ---- */
+    --sky-zenith:  #2a1a4a;
+    --sky-upper:   #572f74;
+    --sky-mid:     #a94a6f;
+    --sky-warm:    #e0724d;
+    --sky-glow:    #f7a95e;
+    --sky-horizon: #ffd9a3;
+
+    /* ---- Forest ---- */
+    --grass:      #5aab4c;
+    --grass-dark: #3d7c38;
+    --jade:       #34c17a;
+
+    /* ---- Ink on glass ---- */
+    --ink:      #fffdf9;
+    --ink-soft: rgba(255,253,249,.80);
+    --ink-dim:  rgba(255,253,249,.58);
+
+    /* ---- Frosted glass ---- */
+    --glass:        rgba(255,255,255,.11);
+    --glass-hover:  rgba(255,255,255,.17);
+    --hairline:     rgba(255,255,255,.44);
+    --hairline-soft:rgba(255,255,255,.20);
+    --shadow:       0 18px 46px rgba(38,14,48,.34);
+    --inner-light:  inset 0 1px 0 rgba(255,255,255,.38);
+
+    --font: "Segoe UI", "Helvetica Neue", -apple-system, BlinkMacSystemFont, Roboto, Arial, sans-serif;
+  }
+
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html, body { min-height:100%; }
+
+  body {
+    font-family: var(--font);
+    color: var(--ink);
+    min-height:100vh;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:22px;
+    overflow:auto;
+
+    /* Sweeping high-altitude dusk: purple zenith -> magenta -> warm orange -> horizon gold */
+    background:
+      radial-gradient(120% 62% at 50% 107%,
+        rgba(255,205,135,.80) 0%, rgba(255,152,92,.34) 27%, rgba(255,110,140,0) 60%),
+      radial-gradient(78% 42% at 50% 97%,
+        rgba(255,241,205,.60) 0%, rgba(255,205,145,0) 58%),
+      linear-gradient(180deg,
+        var(--sky-zenith) 0%,
+        var(--sky-upper)  16%,
+        var(--sky-mid)    38%,
+        var(--sky-warm)   60%,
+        var(--sky-glow)   79%,
+        var(--sky-horizon)100%);
+    background-attachment: fixed;
+  }
+
+  .app {
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:16px;
+    max-width:100%;
+  }
+  .stage-row {
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:18px;
+  }
+
+  /* ---- Shared frosted-glass surface ---- */
+  .frame,
+  .bot-panel,
+  .bracket {
+    background: var(--glass);
+    border: 1px solid var(--hairline);
+    border-radius:16px;
+    backdrop-filter: blur(16px) saturate(150%);
+    -webkit-backdrop-filter: blur(16px) saturate(150%);
+    box-shadow: var(--shadow), var(--inner-light);
+  }
+
+  .frame {
+    position:relative;
+    padding:14px;
+    flex:0 1 auto;
+    border-radius:20px;
+  }
+
+  canvas {
+    display:block;
+    /* Shrink to fit when the bracket would otherwise push past the viewport. */
+    width: min(1280px, calc(100vw - 440px));
+    height:auto;
+    border-radius:12px;
+    background:#2a1a4a;                       /* matches the painted sky */
+    box-shadow: 0 0 0 1px rgba(255,255,255,.30),
+                0 10px 30px rgba(30,10,40,.42);
+  }
+
+  .hint {
+    position:absolute;
+    left:0; right:0; bottom:-26px;
+    text-align:center;
+    font-size:11px;
+    font-weight:600;
+    letter-spacing:.20em;
+    text-transform:uppercase;
+    color: rgba(255,253,249,.62);
+    text-shadow: 0 1px 6px rgba(40,16,50,.5);
+  }
+
+  /* ---- Control panel ---- */
+  .controls {
+    display:grid;
+    grid-template-columns: repeat(auto-fit, minmax(238px, 1fr));
+    gap:12px;
+    width:100%;
+    max-width:1320px;
+  }
+
+  .bot-panel {
+    --accent:#ffffff;
+    padding:13px 14px 15px;
+    border-radius:14px;
+  }
+
+  .bot-panel header {
+    display:flex;
+    align-items:center;
+    gap:9px;
+    margin-bottom:12px;
+    padding-bottom:9px;
+    border-bottom:1px solid var(--hairline-soft);
+  }
+  .bot-panel header .dot {
+    width:10px; height:10px;
+    border-radius:50%;
+    background:var(--accent);
+    box-shadow:0 0 10px var(--accent);
+    flex:0 0 auto;
+  }
+  .bot-panel header .name {
+    font-weight:800;
+    font-size:12px;
+    letter-spacing:.10em;
+    text-transform:uppercase;
+    text-shadow:0 1px 5px rgba(30,10,40,.55);
+  }
+  .bot-panel header .chip {
+    margin-left:auto;
+    font-size:10px;
+    font-weight:700;
+    letter-spacing:.10em;
+    text-transform:uppercase;
+    padding:3px 9px;
+    border-radius:999px;
+    background:var(--glass-hover);
+    border:1px solid var(--hairline-soft);
+    color:var(--ink);
+    transition:color .12s linear;
+  }
+
+  .row {
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:8px;
+    font-size:11px;
+  }
+  .row .k {
+    color:var(--ink-dim);
+    font-weight:700;
+    letter-spacing:.09em;
+    text-transform:uppercase;
+  }
+  .row .v {
+    color:var(--ink);
+    font-weight:800;
+    font-variant-numeric:tabular-nums;
+  }
+
+  .slider { margin-top:11px; }
+  .slider .derive {
+    margin-top:4px;
+    font-size:10px;
+    font-weight:600;
+    color:var(--ink-dim);
+  }
+
+  select {
+    background: var(--glass-hover);
+    color: var(--ink);
+    border:1px solid var(--hairline);
+    border-radius:9px;
+    padding:5px 8px;
+    font:inherit;
+    font-size:11px;
+    font-weight:700;
+    cursor:pointer;
+  }
+  select option { background:#44235e; color:#fff; }
+  select:focus-visible { outline:2px solid rgba(255,255,255,.75); outline-offset:2px; }
+
+  input[type=range] {
+    -webkit-appearance:none;
+    appearance:none;
+    width:100%;
+    height:5px;
+    margin-top:9px;
+    border-radius:999px;
+    background: rgba(255,255,255,.30);
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,.16);
+    cursor:pointer;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance:none;
+    appearance:none;
+    width:15px; height:15px;
+    border-radius:50%;
+    background:var(--accent);
+    border:2px solid #fff;
+    box-shadow:0 2px 8px rgba(30,10,40,.45);
+  }
+  input[type=range]::-moz-range-thumb {
+    width:15px; height:15px;
+    border-radius:50%;
+    background:var(--accent);
+    border:2px solid #fff;
+    box-shadow:0 2px 8px rgba(30,10,40,.45);
+  }
+  input[type=range]:focus-visible { outline:2px solid rgba(255,255,255,.75); outline-offset:4px; }
+
+  .reset {
+    margin-top:14px;
+    width:100%;
+    padding:7px;
+    background: var(--glass-hover);
+    color:var(--ink-soft);
+    border:1px solid var(--hairline);
+    border-radius:9px;
+    font:inherit;
+    font-size:10px;
+    font-weight:800;
+    letter-spacing:.13em;
+    text-transform:uppercase;
+    cursor:pointer;
+    transition: background .15s linear, color .15s linear;
+  }
+  .reset:hover { background: rgba(255,255,255,.26); color:var(--ink); }
+
+  .panel-hint {
+    font-size:10px;
+    font-weight:600;
+    line-height:1.6;
+    text-align:center;
+    color: var(--ink-dim);
+    text-shadow:0 1px 5px rgba(30,10,40,.5);
+  }
+
+  /* ---- Tournament bracket ---- */
+  .bracket {
+    width: 330px;
+    flex: 0 0 auto;
+    align-self:stretch;
+    display:flex;
+    flex-direction:column;
+    border-radius:16px;
+    padding:13px 14px 15px;
+  }
+  .br-head {
+    display:flex;
+    align-items:baseline;
+    justify-content:space-between;
+    margin-bottom:12px;
+    padding-bottom:9px;
+    border-bottom:1px solid var(--hairline-soft);
+  }
+  .br-title {
+    font-size:11px;
+    font-weight:800;
+    letter-spacing:.16em;
+    text-transform:uppercase;
+    color:var(--ink-soft);
+  }
+  .br-number {
+    font-size:11px;
+    font-weight:800;
+    letter-spacing:.08em;
+    color:var(--ink);
+  }
+  .br-rounds { display:flex; gap:9px; flex:1 1 auto; }
+  .br-col {
+    flex:1 1 0;
+    display:flex;
+    flex-direction:column;
+    gap:9px;
+    justify-content:center;
+    min-width:0;
+  }
+  .br-col-title {
+    font-size:9px;
+    font-weight:800;
+    letter-spacing:.12em;
+    text-transform:uppercase;
+    text-align:center;
+    color:var(--ink-dim);
+    margin-bottom:2px;
+  }
+  .br-match {
+    display:flex;
+    flex-direction:column;
+    gap:4px;
+    padding:7px;
+    border:1px solid var(--hairline-soft);
+    border-radius:10px;
+    background: rgba(255,255,255,.07);
+    transition:border-color .15s linear, box-shadow .15s linear, background .15s linear;
+  }
+  .br-match.live {
+    border-color: rgba(255,255,255,.85);
+    background: rgba(255,255,255,.16);
+    box-shadow: 0 0 0 1px rgba(255,255,255,.35), 0 6px 18px rgba(30,10,40,.30);
+  }
+  .br-slot { display:flex; align-items:center; gap:6px; font-size:10px; min-width:0; }
+  .br-dot {
+    width:7px; height:7px;
+    border-radius:50%;
+    flex:0 0 auto;
+    box-shadow:0 0 6px rgba(0,0,0,.25);
+  }
+  .br-nm {
+    flex:1 1 auto;
+    color:var(--ink-soft);
+    font-weight:700;
+    letter-spacing:.03em;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+  }
+  .br-nm.tbd { color:rgba(255,253,249,.35); letter-spacing:.22em; }
+  .br-slot.win  .br-nm { color:#fff; font-weight:800; }
+  .br-slot.lose { opacity:.45; }
+  .br-slot.lose .br-nm { text-decoration:line-through; }
+  .br-pips {
+    flex:0 0 auto;
+    font-size:9px;
+    letter-spacing:.06em;
+    color:rgba(255,253,249,.55);
+    font-variant-numeric:tabular-nums;
+  }
+  .br-slot.win .br-pips { color:#fff; }
+  .br-col-champ { flex:0 0 78px; }
+  .br-champ {
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    text-align:center;
+    min-height:46px;
+    padding:7px;
+    border:1px dashed rgba(255,255,255,.40);
+    border-radius:11px;
+    font-size:11px;
+    font-weight:800;
+    letter-spacing:.10em;
+    color:rgba(255,253,249,.40);
+    word-break:break-word;
+  }
+  .br-champ.crowned {
+    border-style:solid;
+    border-width:2px;
+    background: rgba(255,255,255,.14);
+    box-shadow: 0 0 22px rgba(255,230,170,.45);
+  }
+
+  /* Stack on narrow viewports. */
+  @media (max-width: 1120px) {
+    .stage-row { flex-direction:column; }
+    canvas { width: min(1280px, 92vw); }
+    .bracket { width: min(1280px, 92vw); align-self:auto; }
+    .br-rounds { gap:14px; }
+  }
+</style>
+</head>
+<body>
+  <div class="app">
+    <div class="stage-row">
+      <div class="frame">
+        <canvas id="game" width="1280" height="720"></canvas>
+        <div class="hint">Zero-Player Arena · Step 4 — Automated Tournament</div>
+      </div>
+      <section id="bracket" class="bracket" aria-label="Tournament bracket"></section>
+    </div>
+    <aside id="controls" class="controls" aria-label="Fighter tuning"></aside>
+  </div>
+
+<script>
+"use strict";
+
+/* ============================================================================
+   NEON BRAWL — an automated, self-running platform-fighter arena
+   ----------------------------------------------------------------------------
+   Step 1 — simulation:
+     • HTML5 canvas + fixed-timestep game loop
+     • Stage geometry (platforms + Smash-style blast zone)
+     • Physics: gravity, friction/drag, one-way platform collision, knockback
+     • Fighter class: full FSM (IDLE/MOVING/ATTACKING/HITSTUN/RECOVERING),
+       move/jump/double-jump/attack, damage %, hitstun, respawn + death count
+   Step 2 — brains:
+     • AIBrain: a decision-level FSM (APPROACH/ATTACK/RETREAT/RECOVER/WAIT)
+       layered on top of the Fighter's physical FSM
+     • Two distinct personality presets (RUSHDOWN vs ZONER) so the bots do
+       not think alike
+     • Live per-bot debug overlay of the current AI state
+   Step 3 — controls:
+     • A per-fighter `tuning` block (speed / jump / reach / aggression /
+       weight) that the physics and AI read every tick
+     • An HTML control panel with live sliders + a personality dropdown,
+       writing straight into that tuning block
+   Step 4 — automated tournament:
+     • Stock matches (CONFIG.match.stocks = 3 lives)
+     • Four competitors (ALPHA / BRAVO / CHARLIE / DELTA) rotating through
+       two physical fighter slots
+     • Single-elimination bracket 4 -> 2 -> 1, auto-advancing winners,
+       crowned champion, then loops forever
+     • A live DOM bracket rendered beside the canvas
+
+   The Fighter's public API (moveLeft / moveRight / jump / attack / face) is
+   the only seam the AI uses — physics is never touched directly.
+   ============================================================================ */
+
+/* ---------------------------------------------------------------------------
+   1. TUNING CONFIG
+   ------------------------------------------------------------------------ */
+const CONFIG = Object.freeze({
+  canvas: { width: 1280, height: 720 },
+
+  physics: {
+    gravity:        2600,   // px/s^2
+    maxFallSpeed:   1700,   // px/s terminal velocity
+    groundAccel:    5600,   // px/s^2 while grounded
+    airAccel:       3200,   // px/s^2 while airborne
+    maxRunSpeed:    470,    // px/s horizontal cap
+    groundFriction: 16,     // exponential damping coefficient (grounded, no input)
+    airDrag:        0.7     // exponential damping coefficient (airborne, no input)
+  },
+
+  fighter: {
+    width: 44,
+    height: 64,
+    maxJumps: 2,
+    jumpVelocity: -1020,
+    doubleJumpVelocity: -900
+  },
+
+  combat: {
+    damage:         9,      // % added per connecting hit
+    knockbackBase:  240,    // knockback at 0%
+    knockbackScale: 9.2,    // knockback added per 1% damage
+    knockbackLift:  260,    // guaranteed upward component
+    hitstunMin:     0.10,   // seconds
+    hitstunMax:     1.20,   // seconds
+    attack: {
+      startupFrames:  5,
+      activeFrames:   4,
+      recoveryFrames: 9,
+      cooldown:       0.18, // seconds after the swing fully ends
+      reach:          46,   // hitbox width in front of the fighter
+      height:         40,
+      yOffset:        8     // hitbox offset from fighter top
+    }
+  },
+
+  respawn: {
+    delay:  0.85,  // seconds of "off-screen" before reappearing
+    invuln: 1.25   // seconds of spawn invulnerability
+  },
+
+  match: {
+    stocks: 3        // lives per fighter, per tournament match
+  },
+
+  tournament: {
+    introTime:    1.6,  // s: "SEMIFINALS — ALPHA vs BRAVO" banner
+    resultTime:   2.2,  // s: "<WINNER> WINS" banner
+    championTime: 3.4   // s: champion banner before the next tournament
+  }
+});
+
+/* ---------------------------------------------------------------------------
+   1b. TUNABLE SURFACE — the dials the HTML control panel drives.
+   Each entry describes one slider. `derive` renders the effective in-game
+   value, so the abstract multiplier has a concrete meaning on screen.
+   ------------------------------------------------------------------------ */
+const SLIDER_SPEC = Object.freeze([
+  Object.freeze({
+    key: "speed", label: "Speed", min: 0.40, max: 2.20, step: 0.05,
+    fmt: (v) => v.toFixed(2) + "×",
+    derive: (v) => Math.round(CONFIG.physics.maxRunSpeed * v) + " px/s top speed"
+  }),
+  Object.freeze({
+    key: "jump", label: "Jump Height", min: 0.50, max: 1.80, step: 0.05,
+    fmt: (v) => v.toFixed(2) + "×",
+    derive: (v) => Math.round(Math.abs(CONFIG.fighter.jumpVelocity) * v) + " px/s launch"
+  }),
+  Object.freeze({
+    key: "reach", label: "Attack Range", min: 0.50, max: 2.00, step: 0.05,
+    fmt: (v) => v.toFixed(2) + "×",
+    derive: (v) => Math.round(CONFIG.combat.attack.reach * v) + " px hitbox"
+  }),
+  Object.freeze({
+    key: "aggression", label: "Aggression", min: 0.00, max: 1.00, step: 0.02,
+    fmt: (v) => Math.round(v * 100) + "%",
+    derive: (v) => Math.round(CONFIG.combat.attack.cooldown * (1.7 - v) * 1000) + " ms between swings"
+  }),
+  Object.freeze({
+    key: "weight", label: "Weight", min: 0.40, max: 2.00, step: 0.05,
+    fmt: (v) => v.toFixed(2) + "×",
+    derive: (v) => Math.round(100 / v) + "% knockback taken"
+  })
+]);
+
+/**
+ * A fresh, MUTABLE tuning block for one fighter. The control panel writes
+ * straight into this object and the physics/AI read from it every tick, so
+ * slider moves take effect on the very next frame — no rebuild step.
+ */
+function defaultTuning() {
+  return { speed: 1, jump: 1, reach: 1, aggression: 0.6, weight: 1 };
+}
+
+/* ---------------------------------------------------------------------------
+   2. STAGE — platforms + blast zone
+   Coordinates: origin top-left, +y is DOWN.
+   ------------------------------------------------------------------------ */
+const STAGE = Object.freeze({
+  // Main platform is centered on the 1280-wide stage; side platforms are
+  // one-way (Smash-style) floats for future recovery play.
+  platforms: Object.freeze([
+    Object.freeze({ x: 280, y: 500, w: 720, h: 26, main: true  }),
+    Object.freeze({ x: 130, y: 356, w: 210, h: 16, main: false }),
+    Object.freeze({ x: 940, y: 356, w: 210, h: 16, main: false })
+  ]),
+
+  // Anything crossing these bounds is KO'd.
+  blast: Object.freeze({
+    left:   -240,
+    right:  CONFIG.canvas.width + 240,
+    top:    -300,
+    bottom: CONFIG.canvas.height + 220
+  }),
+
+  // Slot spawn points (x is a raw canvas x; the fighter is centered on it).
+  spawns: Object.freeze({
+    left:  Object.freeze({ x: 430, y: 380 }),
+    right: Object.freeze({ x: 850, y: 380 })
+  })
+});
+
+/* ---------------------------------------------------------------------------
+   3. SMALL MATH HELPERS
+   ------------------------------------------------------------------------ */
+const clamp = (v, lo, hi) => v < lo ? lo : (v > hi ? hi : v);
+const sign  = (v) => v < 0 ? -1 : (v > 0 ? 1 : 0);
+
+/** Frame count -> seconds. Physics runs on a fixed 60 Hz timestep. */
+const FIXED_DT = 1 / 60;
+const frames = (n) => n * FIXED_DT;
+
+/** Axis-aligned bounding-box overlap test. */
+function aabb(a, b) {
+  return a.x < b.x + b.w &&
+         a.x + a.w > b.x &&
+         a.y < b.y + b.h &&
+         a.y + a.h > b.y;
+}
+
+/* ---------------------------------------------------------------------------
+   3b. COLOUR + TYPE HELPERS
+   Everything is computed at runtime — the theme uses zero external assets.
+   ------------------------------------------------------------------------ */
+const UI_FONT = '"Segoe UI", "Helvetica Neue", -apple-system, Roboto, Arial, sans-serif';
+const uiFont = (weight, size) => weight + " " + size + "px " + UI_FONT;
+
+function hexToRgb(hex) {
+  let h = hex.replace("#", "");
+  if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+  const n = parseInt(h, 16);
+  return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
+}
+
+/** Mix a hex colour toward another hex colour: t=0 -> hex, t=1 -> target. */
+function mixHex(hex, target, t) {
+  const a = hexToRgb(hex);
+  const b = hexToRgb(target);
+  return "rgb(" +
+    Math.round(a.r + (b.r - a.r) * t) + "," +
+    Math.round(a.g + (b.g - a.g) * t) + "," +
+    Math.round(a.b + (b.b - a.b) * t) + ")";
+}
+
+/** Hex + alpha -> rgba() string, for translucent fills and strokes. */
+function rgba(hex, alpha) {
+  const c = hexToRgb(hex);
+  return "rgba(" + c.r + "," + c.g + "," + c.b + "," + alpha + ")";
+}
+
+/**
+ * Smash-style damage colour ramp.
+ *   0%    -> soft white / grey
+ *   ~55%  -> warm amber (ties into the sunset palette)
+ *   130%+ -> intense, deep crimson
+ */
+function damageColor(pct) {
+  const t = clamp(pct / 130, 0, 1);
+  let r, g, b;
+  if (t < 0.55) {
+    const k = t / 0.55;
+    r = 235 + (255 - 235) * k;
+    g = 235 + (168 - 235) * k;
+    b = 240 + (88  - 240) * k;
+  } else {
+    const k = (t - 0.55) / 0.45;
+    r = 255 + (148 - 255) * k;
+    g = 168 + (22  - 168) * k;
+    b = 88  + (38  - 88)  * k;
+  }
+  return "rgb(" + Math.round(r) + "," + Math.round(g) + "," + Math.round(b) + ")";
+}
+
+/* ---------------------------------------------------------------------------
+   4. FIGHTER STATE MACHINE
+   ------------------------------------------------------------------------ */
+const STATE = Object.freeze({
+  IDLE:       "IDLE",
+  MOVING:     "MOVING",
+  ATTACKING:  "ATTACKING",
+  HITSTUN:    "HITSTUN",
+  RECOVERING: "RECOVERING"
+});
+
+/* ---------------------------------------------------------------------------
+   5. FIGHTER
+   ------------------------------------------------------------------------ */
+class Fighter {
+  /**
+   * @param {object} opts
+   * @param {string} opts.name    Display name (e.g. "SUN WARRIOR").
+   * @param {string} opts.color   Primary body colour.
+   * @param {string} opts.accent  Glowing visor / emblem colour.
+   * @param {{x:number,y:number}} opts.spawn  Spawn point (center-x, top-y).
+   * @param {number} opts.facing  Initial facing (-1 left, +1 right).
+   */
+  constructor(opts) {
+    this.name   = opts.name;
+    this.color  = opts.color;
+    this.accent = opts.accent || "#ffffff";   // glowing visor / emblem colour
+    this.spawn  = opts.spawn;
+
+    this.width  = CONFIG.fighter.width;
+    this.height = CONFIG.fighter.height;
+
+    // Live per-fighter combat stats. In tournament play this is REPLACED by a
+    // reference to the owning competitor's tuning block, so panel edits stick
+    // to a competitor across every match. Never touched by a KO.
+    this.tuning = defaultTuning();
+
+    this.deaths = 0;                            // stocks lost this tournament
+    this.stocksLeft = CONFIG.match.stocks;
+    this.facingDirection = opts.facing === undefined ? 1 : opts.facing;
+
+    this._placeAtSpawn(false);                  // establish a clean initial state
+  }
+
+  /* ---- geometry getters ---- */
+  get left()    { return this.x; }
+  get right()   { return this.x + this.width; }
+  get top()     { return this.y; }
+  get bottom()  { return this.y + this.height; }
+  get centerX() { return this.x + this.width / 2; }
+  get centerY() { return this.y + this.height / 2; }
+
+  /** Can this fighter currently accept movement / action input? */
+  get controllable() {
+    return this.alive &&
+           this.state !== STATE.HITSTUN &&
+           this.state !== STATE.ATTACKING;
+  }
+
+  /** Is the attack hitbox live this frame? */
+  get attackActive() {
+    if (this.state !== STATE.ATTACKING) return false;
+    const s = frames(CONFIG.combat.attack.startupFrames);
+    const a = frames(CONFIG.combat.attack.activeFrames);
+    // attackTimer counts DOWN from total; elapsed = total - timer.
+    const elapsed = this.attackTotal - this.attackTimer;
+    return elapsed >= s && elapsed < s + a;
+  }
+
+  /** The live forward-facing hitbox rectangle (or null when inactive). */
+  get attackHitbox() {
+    if (!this.attackActive) return null;
+    const cfg = CONFIG.combat.attack;
+    const w = cfg.reach * this.tuning.reach;
+    const h = cfg.height;
+    const x = this.facingDirection >= 0 ? this.right : this.left - w;
+    const y = this.top + cfg.yOffset;
+    return { x, y, w, h };
+  }
+
+  /* --------------------------------------------------------------------
+     Lifecycle
+     ------------------------------------------------------------------ */
+
+  /** Fresh match: full stocks, zero damage, back on the spawn pad. */
+  resetMatch() {
+    this.deaths = 0;
+    this.stocksLeft = CONFIG.match.stocks;
+    this._placeAtSpawn(false);
+  }
+
+  /**
+   * Positional/state reset, used at match start and after each KO.
+   * @param {boolean} invuln grant spawn invulnerability (true after a KO)
+   */
+  _placeAtSpawn(invuln) {
+    this.x = this.spawn.x - this.width / 2;
+    this.y = this.spawn.y;
+    this.prevY = this.y;
+    this.velocityX = 0;
+    this.velocityY = 0;
+    this.damagePercentage = 0;
+    this.isGrounded = false;
+    this.jumpsUsed = 0;
+    this.attackTimer = 0;
+    this.attackTotal = 0;
+    this.attackCooldown = 0;
+    this.hitRegistered = false;
+    this.hitstunTimer = 0;
+    this.respawnTimer = 0;
+    this.hitFlash = 0;
+    this.alive = true;
+    this.state = STATE.IDLE;
+    this.invulnTimer = invuln ? CONFIG.respawn.invuln : 0;
+  }
+
+  /* --------------------------------------------------------------------
+     Input API — the seam the AI will drive in Step 2
+     ------------------------------------------------------------------ */
+
+  /** Face a direction (-1 or +1). Useful for aiming attacks at a target. */
+  face(dir) {
+    if (dir !== 0) this.facingDirection = dir < 0 ? -1 : 1;
+  }
+
+  moveLeft(scale = 1)  { this._applyMove(-1, scale); }
+  moveRight(scale = 1) { this._applyMove(1, scale); }
+
+  /**
+   * Jump. Grounded -> first jump. Airborne with jumps remaining -> double jump.
+   * @returns {boolean} true if a jump was actually performed.
+   */
+  jump() {
+    if (!this.controllable) return false;
+
+    if (this.isGrounded) {
+      this.velocityY = CONFIG.fighter.jumpVelocity * this.tuning.jump;
+      this.isGrounded = false;
+      this.jumpsUsed = 1;
+      this.state = STATE.MOVING;
+      return true;
+    }
+    if (this.jumpsUsed < CONFIG.fighter.maxJumps) {
+      this.velocityY = CONFIG.fighter.doubleJumpVelocity * this.tuning.jump;
+      this.jumpsUsed += 1;
+      this.state = STATE.MOVING;
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * Start a basic attack (if off cooldown and not busy).
+   * @returns {boolean} true if the swing started.
+   */
+  attack() {
+    if (!this.controllable) return false;
+    if (this.state === STATE.ATTACKING) return false;
+    if (this.attackCooldown > 0) return false;
+
+    const cfg = CONFIG.combat.attack;
+    this.attackTotal = frames(
+      cfg.startupFrames + cfg.activeFrames + cfg.recoveryFrames
+    );
+    this.attackTimer = this.attackTotal;
+    this.hitRegistered = false;
+    this.state = STATE.ATTACKING;
+    return true;
+  }
+
+  /* --------------------------------------------------------------------
+     Internal movement
+     ------------------------------------------------------------------ */
+  /**
+   * Aggression compresses the post-swing cooldown: 0 -> 1.7x (slow and
+   * deliberate), 1 -> 0.7x (relentless). This is what makes the Aggression
+   * slider genuinely change how often a bot swings.
+   */
+  _cooldownScale() {
+    return 1.7 - clamp(this.tuning.aggression, 0, 1);
+  }
+
+  _applyMove(dir, scale) {
+    if (!this.controllable) return;
+
+    const boost = this.tuning.speed;
+    const accel = (this.isGrounded
+      ? CONFIG.physics.groundAccel
+      : CONFIG.physics.airAccel) * boost;
+    const maxRun = CONFIG.physics.maxRunSpeed * boost;
+
+    this.velocityX += dir * accel * scale * FIXED_DT;
+    this.velocityX  = clamp(this.velocityX, -maxRun, maxRun);
+    this.face(dir);
+    if (this.isGrounded) this.state = STATE.MOVING;
+  }
+
+  /* --------------------------------------------------------------------
+     Per-tick update
+     ------------------------------------------------------------------ */
+
+  /**
+   * @param {Fighter} opponent
+   */
+  update(opponent) {
+    // ---- timers -------------------------------------------------------
+    if (this.attackCooldown > 0) this.attackCooldown = Math.max(0, this.attackCooldown - FIXED_DT);
+    if (this.invulnTimer   > 0) this.invulnTimer    = Math.max(0, this.invulnTimer   - FIXED_DT);
+    if (this.hitFlash      > 0) this.hitFlash       = Math.max(0, this.hitFlash      - FIXED_DT);
+
+    // ---- dead / awaiting respawn -------------------------------------
+    if (!this.alive) {
+      this.respawnTimer -= FIXED_DT;
+      // Out of stocks = eliminated for this match; the tournament resets us.
+      if (this.respawnTimer <= 0 && this.stocksLeft > 0) this._placeAtSpawn(true);
+      return;
+    }
+
+    // ---- busy states --------------------------------------------------
+    if (this.state === STATE.ATTACKING) {
+      this.attackTimer -= FIXED_DT;
+      if (this.attackTimer <= 0) {
+        this.attackCooldown = CONFIG.combat.attack.cooldown * this._cooldownScale();
+        this.attackTimer = 0;
+        this.state = this.isGrounded ? STATE.IDLE : STATE.RECOVERING;
+      }
+    } else if (this.state === STATE.HITSTUN) {
+      this.hitstunTimer -= FIXED_DT;
+      if (this.hitstunTimer <= 0) {
+        this.hitstunTimer = 0;
+        this.state = this.isGrounded ? STATE.IDLE : STATE.RECOVERING;
+      }
+    }
+
+    // ---- physics integration -----------------------------------------
+    this._integrate();
+
+    // ---- resolve landing / standing ----------------------------------
+    this._collidePlatforms();
+
+    // ---- passive state reconciliation --------------------------------
+    this._reconcileState();
+
+    // ---- blast-zone (KO) check ---------------------------------------
+    this._checkBlastZone();
+  }
+
+  _integrate() {
+    // Gravity
+    this.velocityY += CONFIG.physics.gravity * FIXED_DT;
+    if (this.velocityY > CONFIG.physics.maxFallSpeed) {
+      this.velocityY = CONFIG.physics.maxFallSpeed;
+    }
+
+    // Damping when no directional input is being applied.
+    // (Movement input adds after this via _applyMove during the controller
+    //  phase; we damp here so a released stick bleeds speed naturally.)
+    const damp = this.isGrounded
+      ? CONFIG.physics.groundFriction
+      : CONFIG.physics.airDrag;
+    const factor = Math.exp(-damp * FIXED_DT);
+    this.velocityX *= factor;
+    if (Math.abs(this.velocityX) < 1) this.velocityX = 0;
+
+    // Integrate position, remembering where we came from for one-way tests.
+    this.prevY = this.y;
+    this.x += this.velocityX * FIXED_DT;
+    this.y += this.velocityY * FIXED_DT;
+  }
+
+  _collidePlatforms() {
+    // Assume airborne until a platform catches us this tick.
+    const wasGrounded = this.isGrounded;
+    this.isGrounded = false;
+
+    for (const p of STAGE.platforms) {
+      const overlapX = this.right > p.x && this.left < p.x + p.w;
+      if (!overlapX) continue;
+
+      // One-way: only land when descending and crossing the top surface.
+      const prevBottom = this.prevY + this.height;
+      const currBottom = this.bottom;
+      const descending = this.velocityY >= 0;
+
+      if (descending && prevBottom <= p.y + 1 && currBottom >= p.y) {
+        this.y = p.y - this.height;
+        this.velocityY = 0;
+        this.isGrounded = true;
+        this.jumpsUsed = 0;   // refresh air jumps on landing
+      }
+    }
+
+    // Walking off an edge: keep the grounded flag honest.
+    if (wasGrounded && !this.isGrounded && this.velocityY >= 0) {
+      // falls through — gravity takes over next tick
+    }
+  }
+
+  _reconcileState() {
+    if (this.state === STATE.ATTACKING || this.state === STATE.HITSTUN) return;
+    if (!this.alive) return;
+
+    if (this.isGrounded) {
+      this.state = Math.abs(this.velocityX) > 8 ? STATE.MOVING : STATE.IDLE;
+    } else {
+      // Below the main platform line and off to the side => needs to recover.
+      this.state = STATE.RECOVERING;
+    }
+  }
+
+  _checkBlastZone() {
+    const b = STAGE.blast;
+    const out =
+      this.right  < b.left  ||
+      this.left   > b.right ||
+      this.bottom < b.top   ||
+      this.top    > b.bottom;
+
+    if (out) {
+      this.alive = false;
+      this.deaths += 1;                             // stocks lost this tournament
+      this.stocksLeft = Math.max(0, this.stocksLeft - 1);
+      this.respawnTimer = CONFIG.respawn.delay;
+      this.velocityX = 0;
+      this.velocityY = 0;
+    }
+  }
+
+  /* --------------------------------------------------------------------
+     Combat resolution (called by the world once per tick)
+     ------------------------------------------------------------------ */
+
+  /**
+   * If this fighter's attack is live and connects with `target`, apply damage
+   * and knockback. Each swing may only connect once.
+   * @param {Fighter} target
+   * @returns {boolean} whether a hit landed this call.
+   */
+  tryHit(target) {
+    if (!this.attackActive || this.hitRegistered) return false;
+    if (!target.alive || target.invulnTimer > 0) return false;
+
+    const box = this.attackHitbox;
+    const body = { x: target.left, y: target.top, w: target.width, h: target.height };
+    if (!aabb(box, body)) return false;
+
+    this.hitRegistered = true;
+    this._applyHit(target);
+    return true;
+  }
+
+  _applyHit(target) {
+    const C = CONFIG.combat;
+
+    // Damage first — knockback scales off the *new* total (Smash-style).
+    target.damagePercentage += C.damage;
+
+    // Weight resists knockback: a heavier fighter takes a smaller share of it.
+    // Scaling the whole magnitude also shortens the resulting hitstun.
+    const weight = clamp(target.tuning.weight, 0.2, 4);
+    const magnitude = (C.knockbackBase + target.damagePercentage * C.knockbackScale) / weight;
+
+    // Direction: away from the attacker, horizontally; always lifted upward.
+    let dirX = sign(target.centerX - this.centerX);
+    if (dirX === 0) dirX = this.facingDirection >= 0 ? 1 : -1;
+
+    target.velocityX = dirX * magnitude;
+    target.velocityY = -(Math.min(magnitude, 900) * 0.42 + C.knockbackLift);
+
+    // Hitstun scales with knockback, clamped to a playable window.
+    target.hitstunTimer = clamp(magnitude / 1100, C.hitstunMin, C.hitstunMax);
+    target.state = STATE.HITSTUN;
+    target.isGrounded = false;
+    target.jumpsUsed = 0;
+    target.hitFlash = 0.12;
+  }
+
+  /* --------------------------------------------------------------------
+     Rendering
+     ------------------------------------------------------------------ */
+  /** Cached palette derived from the primary colour + visor accent. */
+  palette() {
+    const key = this.color + "|" + this.accent;
+    if (this._palKey !== key) {
+      this._palKey = key;
+      this._pal = {
+        base:   this.color,
+        light:  mixHex(this.color, "#ffffff", 0.34),
+        pale:   mixHex(this.color, "#ffffff", 0.62),
+        dark:   mixHex(this.color, "#000000", 0.30),
+        deep:   mixHex(this.color, "#000000", 0.52),
+        accent: this.accent
+      };
+    }
+    return this._pal;
+  }
+
+  /** How far through the current swing we are, 0 -> 1. */
+  get attackProgress() {
+    if (this.state !== STATE.ATTACKING || this.attackTotal <= 0) return 0;
+    return clamp(1 - this.attackTimer / this.attackTotal, 0, 1);
+  }
+
+  draw(ctx, showHitboxes) {
+    if (!this.alive) return;
+
+    // Spawn invulnerability: pulse alpha.
+    const blinking = this.invulnTimer > 0 && (Math.floor(this.invulnTimer * 20) % 2 === 0);
+
+    // The slash sweeps behind the body early in the swing, so drawing it
+    // first lets the warrior read as striking *through* the arc.
+    if (this.state === STATE.ATTACKING) this._drawSlash(ctx);
+
+    ctx.save();
+    ctx.globalAlpha = blinking ? 0.38 : 1;
+    this._drawWarrior(ctx);
+    ctx.restore();
+
+    if (showHitboxes && this.attackActive) this._drawHitboxDebug(ctx);
+  }
+
+  /* --------------------------------------------------------------------
+     Low-poly warrior: legs, torso, head, streaming crest, glowing visor
+     ------------------------------------------------------------------ */
+  _drawWarrior(ctx) {
+    const p  = this.palette();
+    const f  = this.facingDirection >= 0 ? 1 : -1;
+    const x  = this.x, y = this.y, w = this.width, h = this.height;
+    const cx = x + w / 2;
+
+    // Soft grounding shadow so the fighter sits on the grass.
+    if (this.isGrounded) {
+      ctx.save();
+      ctx.globalAlpha *= 0.22;
+      ctx.fillStyle = "#20301a";
+      ctx.beginPath();
+      ctx.ellipse(cx, y + h + 2, w * 0.44, 5, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    // --- legs ---
+    const legTop = y + h * 0.62;
+    const legW   = w * 0.22;
+    ctx.fillStyle = p.deep;
+    this._quad(ctx,
+      cx - legW * 1.50, legTop,  cx - legW * 0.35, legTop,
+      cx - legW * 0.55, y + h,   cx - legW * 1.75, y + h);
+    this._quad(ctx,
+      cx + legW * 0.35, legTop,  cx + legW * 1.50, legTop,
+      cx + legW * 1.75, y + h,   cx + legW * 0.55, y + h);
+
+    // --- back arm ---
+    ctx.fillStyle = p.dark;
+    this._quad(ctx,
+      cx - f * w * 0.34, y + h * 0.34,  cx - f * w * 0.10, y + h * 0.34,
+      cx - f * w * 0.16, y + h * 0.66,  cx - f * w * 0.46, y + h * 0.62);
+
+    // --- torso: broad-shouldered hexagon ---
+    const shoulderY = y + h * 0.30;
+    const waistY    = y + h * 0.66;
+    const shoulder  = w * 0.46;
+    const waist     = w * 0.32;
+
+    const torso = () => {
+      ctx.beginPath();
+      ctx.moveTo(cx - shoulder, shoulderY);
+      ctx.lineTo(cx + shoulder, shoulderY);
+      ctx.lineTo(cx + waist,    waistY);
+      ctx.lineTo(cx + waist * 0.55, waistY + h * 0.05);
+      ctx.lineTo(cx - waist * 0.55, waistY + h * 0.05);
+      ctx.lineTo(cx - waist,    waistY);
+      ctx.closePath();
+    };
+
+    ctx.fillStyle = p.base;
+    torso();
+    ctx.fill();
+
+    // Lit side
+    ctx.save();
+    ctx.globalAlpha *= 0.5;
+    ctx.fillStyle = p.light;
+    ctx.beginPath();
+    ctx.moveTo(cx + f * shoulder * 0.12, shoulderY);
+    ctx.lineTo(cx + f * shoulder, shoulderY);
+    ctx.lineTo(cx + f * waist,    waistY);
+    ctx.lineTo(cx - f * waist * 0.15, waistY);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+
+    // Chest chevron emblem
+    ctx.save();
+    ctx.globalAlpha *= 0.9;
+    ctx.fillStyle = p.accent;
+    ctx.beginPath();
+    ctx.moveTo(cx,                     shoulderY + h * 0.05);
+    ctx.lineTo(cx + f * w * 0.15,      shoulderY + h * 0.15);
+    ctx.lineTo(cx,                     shoulderY + h * 0.25);
+    ctx.lineTo(cx - f * w * 0.04,      shoulderY + h * 0.15);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+
+    // --- head ---
+    const headTop = y + h * 0.06;
+    const headBot = y + h * 0.30;
+    const headW   = w * 0.30;
+    const headSpan = headBot - headTop;
+    const headCY  = (headTop + headBot) / 2;
+
+    ctx.fillStyle = p.base;
+    ctx.beginPath();
+    ctx.moveTo(cx,                        headTop);
+    ctx.lineTo(cx + headW,                headTop + headSpan * 0.28);
+    ctx.lineTo(cx + headW,                headTop + headSpan * 0.78);
+    ctx.lineTo(cx,                        headBot);
+    ctx.lineTo(cx - headW,                headTop + headSpan * 0.78);
+    ctx.lineTo(cx - headW,                headTop + headSpan * 0.28);
+    ctx.closePath();
+    ctx.fill();
+
+    // Streaming helmet crest, trailing behind the facing direction
+    ctx.fillStyle = p.dark;
+    ctx.beginPath();
+    ctx.moveTo(cx - f * headW * 0.20, headTop + 1);
+    ctx.lineTo(cx - f * headW * 1.85, headTop - h * 0.06);
+    ctx.lineTo(cx - f * headW * 0.45, headTop + headSpan * 0.44);
+    ctx.closePath();
+    ctx.fill();
+
+    // --- visor: the clean glowing accent ---
+    ctx.save();
+    ctx.shadowColor = p.accent;
+    ctx.shadowBlur = 15;
+    ctx.fillStyle = p.accent;
+    const visorW = headW * 1.3;
+    const visorH = 6.5;
+    const visorX = f >= 0 ? cx + headW * 0.02 : cx - headW * 1.32;
+    ctx.beginPath();
+    ctx.moveTo(visorX,                    headCY - visorH / 2);
+    ctx.lineTo(visorX + visorW,           headCY - visorH / 2 - f * 2);
+    ctx.lineTo(visorX + visorW,           headCY + visorH / 2 - f * 2);
+    ctx.lineTo(visorX,                    headCY + visorH / 2);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+
+    // --- front arm + fist ---
+    ctx.fillStyle = p.light;
+    this._quad(ctx,
+      cx + f * w * 0.14, y + h * 0.36,   cx + f * w * 0.42, y + h * 0.36,
+      cx + f * w * 0.54, y + h * 0.56,   cx + f * w * 0.20, y + h * 0.62);
+
+    ctx.fillStyle = p.pale;
+    ctx.beginPath();
+    ctx.arc(cx + f * w * 0.52, y + h * 0.47, w * 0.145, 0, Math.PI * 2);
+    ctx.fill();
+
+    // --- crisp white silhouette outline ---
+    ctx.strokeStyle = "rgba(255,255,255,.78)";
+    ctx.lineWidth = 1.4;
+    torso();
+    ctx.stroke();
+
+    // Hit flash
+    if (this.hitFlash > 0) {
+      ctx.save();
+      ctx.globalAlpha *= 0.8;
+      ctx.fillStyle = "#fff";
+      torso();
+      ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  /** Filled quad helper (kept separate so ctx / cx never collide). */
+  _quad(ctx, ax, ay, bx, by, ex, ey, dx, dy) {
+    ctx.beginPath();
+    ctx.moveTo(ax, ay);
+    ctx.lineTo(bx, by);
+    ctx.lineTo(ex, ey);
+    ctx.lineTo(dx, dy);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  /* --------------------------------------------------------------------
+     Slash VFX — a sharp, tapering white/gold crescent
+     ------------------------------------------------------------------ */
+  _drawSlash(ctx) {
+    const prog = this.attackProgress;
+    if (prog <= 0) return;
+
+    // Sweep high-behind -> low-front, eased so it snaps then settles.
+    const A0 = -Math.PI * 0.98;
+    const A1 =  Math.PI * 0.32;
+    const ease  = 1 - Math.pow(1 - prog, 2.2);
+    const sweep = A0 + (A1 - A0) * ease;
+
+    const radius = this.width * 1.15 + prog * 10;
+    const thick  = this.width * 0.34;
+
+    // Snap in over the startup frames, linger, fade through recovery.
+    const fade = prog < 0.15 ? prog / 0.15
+               : prog > 0.72 ? Math.max(0, 1 - (prog - 0.72) / 0.28)
+               : 1;
+    if (fade <= 0) return;
+
+    ctx.save();
+    ctx.translate(this.centerX, this.centerY - 2);
+    ctx.scale(this.facingDirection >= 0 ? 1 : -1, 1);
+    ctx.globalAlpha = fade;
+
+    // Crescent body
+    const grad = ctx.createLinearGradient(0, -radius, 0, radius);
+    grad.addColorStop(0,    "rgba(255,255,255,0)");
+    grad.addColorStop(0.35, "rgba(255,252,226,.72)");
+    grad.addColorStop(0.70, "rgba(255,214,120,.88)");
+    grad.addColorStop(1,    "rgba(255,170,60,.10)");
+
+    ctx.beginPath();
+    ctx.arc(0, 0, radius, A0, sweep, false);
+    ctx.arc(0, 0, radius - thick, sweep, A0, true);
+    ctx.closePath();
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    // Bright core along the leading edge
+    ctx.beginPath();
+    ctx.arc(0, 0, radius - thick * 0.42, Math.max(A0, sweep - 0.95), sweep, false);
+    ctx.lineWidth = 3.2;
+    ctx.lineCap = "round";
+    ctx.strokeStyle = "rgba(255,255,255,.96)";
+    ctx.shadowColor = "rgba(255,238,175,.95)";
+    ctx.shadowBlur = 16;
+    ctx.stroke();
+
+    // Leading tip flare
+    ctx.beginPath();
+    ctx.arc(Math.cos(sweep) * radius, Math.sin(sweep) * radius, 4.2, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(255,255,255,1)";
+    ctx.shadowBlur = 20;
+    ctx.fill();
+
+    ctx.restore();
+  }
+
+  _drawHitboxDebug(ctx) {
+    const box = this.attackHitbox;
+    ctx.save();
+    ctx.setLineDash([5, 4]);
+    ctx.strokeStyle = "rgba(255,255,255,.8)";
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(box.x + 0.5, box.y + 0.5, box.w - 1, box.h - 1);
+    ctx.restore();
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   6. AI BRAIN — decision-level FSM driving each Fighter via its input API
+   ----------------------------------------------------------------------------
+   The brain is a small finite state machine layered ON TOP of the Fighter's
+   physical FSM. It never touches velocity directly; it only calls the
+   fighter's public verbs (moveLeft / moveRight / jump / attack / face), so
+   the whole decision layer is swappable without disturbing the physics.
+
+     APPROACH : too far to strike  -> close the gap (with ledge guarding)
+     ATTACK   : inside engage range -> face the target and swing
+     RETREAT  : badly hurt         -> disengage and reset spacing
+     RECOVER  : knocked off / below the deck -> jump back to the platform
+     WAIT     : brief think-pause between decisions (the reaction lag)
+
+   Priority: RECOVER > RETREAT (a timed commitment) > ATTACK / APPROACH.
+   Recovery deliberately bypasses the reaction-time gate — survival should
+   not wait on a decision cooldown.
+   ------------------------------------------------------------------------ */
+
+const AI_STATE = Object.freeze({
+  APPROACH: "APPROACH",
+  ATTACK:   "ATTACK",
+  RETREAT:  "RETREAT",
+  RECOVER:  "RECOVER",
+  WAIT:     "WAIT"
+});
+
+/** Shared so the canvas overlay and the HTML panel chips agree on color. */
+const AI_STATE_COLORS = Object.freeze({
+  APPROACH: "#22d3ee",
+  ATTACK:   "#ff5b5b",
+  RETREAT:  "#ff3df0",
+  RECOVER:  "#ffb020",
+  WAIT:     "#8fa3b8"
+});
+
+/**
+ * Per-bot personality. Two bots sharing a stage should NOT think alike, so
+ * every value here is a tuning dial rather than a hard constant.
+ */
+const AI_PRESETS = Object.freeze({
+  // Fast, light, short reach, swings constantly. Glass cannon.
+  RUSHDOWN: Object.freeze({
+    label:            "RUSHDOWN",
+    reactionTime:     0.09,   // s between re-decisions (lower = twitchier)
+    engageRange:      74,     // px: commit to ATTACK at or below this
+    preferredRange:   58,     // px: how close it wants to sit in the pocket
+    retreatThreshold: 125,    // damage % before it begins disengaging
+    retreatTime:      0.30,   // s spent backing off
+    jumpiness:        0.65,   // odds of hopping to meet an airborne target
+    ledgeGuard:       58,     // px margin it refuses to walk past at an edge
+    // The five control-panel dials this archetype ships with.
+    tuning: Object.freeze({ speed: 1.25, jump: 1.05, reach: 0.90, aggression: 0.90, weight: 0.85 })
+  }),
+  // Slow, heavy, long reach, keeps its spacing. Trades blows on its terms.
+  ZONER: Object.freeze({
+    label:            "ZONER",
+    reactionTime:     0.19,   // slower to react, more deliberate
+    engageRange:      96,
+    preferredRange:   86,     // prefers to keep its spacing
+    retreatThreshold: 80,     // bails out much earlier
+    retreatTime:      0.55,
+    jumpiness:        0.22,
+    ledgeGuard:       40,
+    tuning: Object.freeze({ speed: 1.00, jump: 1.20, reach: 1.15, aggression: 0.45, weight: 1.10 })
+  }),
+  // Floaty, evasive, hard to pin down. Lives in the air.
+  TRICKSTER: Object.freeze({
+    label:            "TRICKSTER",
+    reactionTime:     0.12,
+    engageRange:      84,
+    preferredRange:   72,
+    retreatThreshold: 95,
+    retreatTime:      0.42,
+    jumpiness:        0.85,   // hops constantly to meet/avoid
+    ledgeGuard:       66,     // very reluctant to leave the stage
+    tuning: Object.freeze({ speed: 1.10, jump: 1.45, reach: 1.00, aggression: 0.60, weight: 0.90 })
+  }),
+  // Slow, tanky, long reach. Walks you down and refuses to die.
+  BRUISER: Object.freeze({
+    label:            "BRUISER",
+    reactionTime:     0.16,
+    engageRange:      92,
+    preferredRange:   70,
+    retreatThreshold: 150,    // almost never backs off
+    retreatTime:      0.35,
+    jumpiness:        0.30,
+    ledgeGuard:       44,
+    tuning: Object.freeze({ speed: 0.88, jump: 0.92, reach: 1.30, aggression: 0.80, weight: 1.45 })
+  })
+});
+
+class AIBrain {
+  /**
+   * @param {Fighter} fighter  The body this brain drives.
+   * @param {object}  preset   One of AI_PRESETS.
+   * @param {number}  seed     Deterministic RNG seed (reproducible matches).
+   */
+  constructor(fighter, presetName = "RUSHDOWN", seed = 1) {
+    this.f = fighter;
+    this.main = STAGE.platforms.find((p) => p.main) || STAGE.platforms[0];
+
+    this.rng = seed >>> 0;
+    this.cfg = {};
+
+    this.state = AI_STATE.WAIT;
+    this.stateTime = 0;
+    this.decisionTimer = 0;
+    this.jumpLock = 0;
+
+    // Telemetry consumed by the on-screen debug overlay.
+    this.distance = 0;
+    this.lastTransition = "spawn";
+
+    this.applyPreset(presetName);
+  }
+
+  /**
+   * Load a personality preset. Behaviour dials live on the brain (kept as a
+   * MUTABLE copy, since AI_PRESETS itself is frozen); combat stats live on the
+   * fighter's tuning block, which is exactly what the control panel edits.
+   * Called at construction and again from the panel's preset dropdown.
+   */
+  applyPreset(presetName, resetTuning = false) {
+    const p = AI_PRESETS[presetName] || AI_PRESETS.RUSHDOWN;
+
+    this.cfg = {
+      label:            p.label,
+      reactionTime:     p.reactionTime,
+      engageRange:      p.engageRange,
+      preferredRange:   p.preferredRange,
+      retreatThreshold: p.retreatThreshold,
+      retreatTime:      p.retreatTime,
+      jumpiness:        p.jumpiness,
+      ledgeGuard:       p.ledgeGuard
+    };
+    this.label = p.label;
+
+    // Tuning normally lives on the competitor record so panel edits persist
+    // across matches — only overwrite it when explicitly asked to.
+    if (resetTuning && p.tuning) Object.assign(this.f.tuning, p.tuning);
+
+    this._scheduleDecision();
+  }
+
+  /** Fresh RNG stream, so a replayed matchup doesn't play out identically. */
+  reseed(seed) {
+    this.rng = seed >>> 0;
+    this._scheduleDecision();
+  }
+
+  /** Tiny deterministic PRNG — keeps matches reproducible from a seed. */
+  _rand() {
+    this.rng = (this.rng * 1664525 + 1013904223) >>> 0;
+    return this.rng / 4294967296;
+  }
+
+  /* --------------------------------------------------------------------
+     Sensing helpers
+     ------------------------------------------------------------------ */
+
+  _setState(next, reason) {
+    if (this.state === next) return;
+    this.state = next;
+    this.stateTime = 0;
+    this.lastTransition = reason || next.toLowerCase();
+  }
+
+  _scheduleDecision() {
+    const jitter = 1 + (this._rand() - 0.5) * 0.4;
+    this.decisionTimer = this.cfg.reactionTime * jitter;
+  }
+
+  /**
+   * Are we airborne with nothing safe beneath or beside us? This is what
+   * triggers the RECOVER state. Standing on any platform is always safe.
+   */
+  _inDanger() {
+    const f = this.f;
+    if (!f.alive || f.isGrounded) return false;
+    if (this._overSafeGround()) return false;
+
+    const main = this.main;
+    const belowDeck = f.bottom > main.y + 30;
+    const outsideX  = f.centerX < main.x - 40 ||
+                      f.centerX > main.x + main.w + 40;
+
+    // Drifting past the edge is only *dangerous* once we're actually falling
+    // back down near deck level. A bot that just double-jumped to contest an
+    // airborne target is rocketing *upward* off the side — there is still
+    // plenty of time to air-drift home, so we must not cry wolf up there.
+    // (Crying wolf makes the state flicker and starves recovery of ticks.)
+    const escapeDrop = outsideX && f.velocityY > 0 && f.bottom > main.y - 160;
+
+    return belowDeck || escapeDrop;
+  }
+
+  /** Airborne, but still above a platform it could simply land on. */
+  _overSafeGround() {
+    const f = this.f;
+    for (const p of STAGE.platforms) {
+      const above   = f.bottom <= p.y + 10;
+      const withinX = f.right > p.x - 40 && f.left < p.x + p.w + 40;
+      if (above && withinX) return true;
+    }
+    return false;
+  }
+
+  /** Can we meaningfully swing at the target right now (height-wise)? */
+  _canThreaten(foe) {
+    const f = this.f;
+    if (!f.alive || f.state === STATE.HITSTUN) return false;
+    return Math.abs(foe.centerY - f.centerY) < f.height * 0.95;
+  }
+
+  /** The platform currently underfoot (falls back to the main stage). */
+  _supportPlatform() {
+    const f = this.f;
+    for (const p of STAGE.platforms) {
+      if (Math.abs(f.bottom - p.y) < 6 && f.right > p.x && f.left < p.x + p.w) {
+        return p;
+      }
+    }
+    return this.main;
+  }
+
+  /** Would moving `dir` push us off the edge of the platform we stand on? */
+  _wouldLeaveLedge(dir) {
+    const f = this.f;
+    const p = this._supportPlatform();
+    const guard = this.cfg.ledgeGuard;
+    return dir > 0
+      ? f.right > p.x + p.w - guard
+      : f.left < p.x + guard;
+  }
+
+  /** The x-coordinate on the main platform this bot aims for when recovering. */
+  _recoveryTarget() {
+    const f = this.f;
+    const cx = this.main.x + this.main.w / 2;
+    const clamped = clamp(f.centerX, this.main.x + 90, this.main.x + this.main.w - 90);
+    return clamped + (cx - clamped) * 0.25;   // bias inward, but not all the way
+  }
+
+  /* --------------------------------------------------------------------
+     Main entry — called once per fixed tick, BEFORE physics integration.
+     ------------------------------------------------------------------ */
+  update(dt, foe) {
+    this.stateTime += dt;
+    this.decisionTimer -= dt;
+    this.jumpLock -= dt;
+
+    const f = this.f;
+    this.distance = Math.hypot(foe.centerX - f.centerX, foe.centerY - f.centerY);
+
+    if (!f.alive) {
+      this.state = AI_STATE.WAIT;   // respawning; nothing to decide
+      return;
+    }
+
+    this._decide(foe);
+    this._execute(foe);
+  }
+
+  /* --------------------------------------------------------------------
+     Decision layer — what should we be doing?
+     ------------------------------------------------------------------ */
+  _decide(foe) {
+    const f = this.f;
+
+    // 1) RECOVER outranks everything and skips the reaction gate.
+    if (this._inDanger()) {
+      this._setState(AI_STATE.RECOVER, "off-stage");
+      return;
+    }
+    if (this.state === AI_STATE.RECOVER) {
+      // Hysteresis: don't flip out of recovery merely because we clipped back
+      // over safe ground mid-arc. Stay committed until we're genuinely safe —
+      // grounded, or back above the stage with a landing in reach.
+      if (!f.isGrounded && !this._overSafeGround()) return;
+      this._setState(AI_STATE.WAIT, "recovered");
+      this._scheduleDecision();
+      return;
+    }
+
+    // 2) RETREAT is a timed commitment — ride it out before re-deciding.
+    if (this.state === AI_STATE.RETREAT && this.stateTime < this.cfg.retreatTime) return;
+
+    // 3) Everything else waits for the reaction gate to open.
+    if (this.decisionTimer > 0) return;
+    this._scheduleDecision();
+
+    const gap = Math.abs(foe.centerX - f.centerX);
+
+    // In range and able to act -> attack.
+    if (this.distance <= this.cfg.engageRange && this._canThreaten(foe)) {
+      this._setState(AI_STATE.ATTACK, "in range");
+      return;
+    }
+
+    // Badly hurt with the enemy on top of us -> disengage. Aggressive bots
+    // are far less willing to give ground.
+    const aggr = f.tuning.aggression;
+    if (f.damagePercentage >= this.cfg.retreatThreshold &&
+        gap <= this.cfg.engageRange * 1.6 &&
+        this._rand() < 0.55 * (1 - aggr * 0.8)) {
+      this._setState(AI_STATE.RETREAT, "high damage");
+      return;
+    }
+
+    this._setState(AI_STATE.APPROACH, "closing");
+  }
+
+  /* --------------------------------------------------------------------
+     Execution layer — how do we do it?
+     ------------------------------------------------------------------ */
+  _execute(foe) {
+    switch (this.state) {
+      case AI_STATE.RECOVER:  this._recover(foe);  break;
+      case AI_STATE.RETREAT:  this._retreat(foe);  break;
+      case AI_STATE.ATTACK:   this._attack(foe);   break;
+      case AI_STATE.APPROACH: this._approach(foe); break;
+      default:                this._wait(foe);     break;
+    }
+  }
+
+  /** Drift back toward the platform and spend air jumps to climb. */
+  _recover(foe) {
+    const f = this.f;
+    if (!f.alive) return;
+
+    const dx = this._recoveryTarget() - f.centerX;
+
+    if (f.controllable) {
+      if (dx > 8)       f.moveRight();
+      else if (dx < -8) f.moveLeft();
+      else              f.face(foe.centerX >= f.centerX ? 1 : -1);
+    }
+
+    // Climb: conserve the air jumps until we actually need the height, so we
+    // don't squander them while still gliding home high above the deck. Once
+    // we're sinking past deck level, spend them one at a time (jump lock).
+    if (!f.isGrounded && this.jumpLock <= 0 &&
+        f.jumpsUsed < CONFIG.fighter.maxJumps) {
+      const belowDeck = f.bottom > this.main.y;
+      const nearDeck  = f.bottom > this.main.y - 70;
+      const sinking   = f.velocityY > 0;
+      if ((belowDeck || (sinking && nearDeck)) && f.jump()) {
+        this.jumpLock = 0.26;
+      }
+    }
+  }
+
+  /** Back away from the enemy, but never off the stage. */
+  _retreat(foe) {
+    const f = this.f;
+    if (!f.controllable) return;
+
+    const away = foe.centerX >= f.centerX ? -1 : 1;
+    f.face(-away);                              // keep eyes on the target
+
+    if (this._wouldLeaveLedge(away)) return;    // cornered: hold ground
+    if (away > 0) f.moveRight(); else f.moveLeft();
+  }
+
+  /** Sit at striking range and swing; step back in if we drifted out. */
+  _attack(foe) {
+    const f = this.f;
+    if (!f.controllable) return;
+
+    const dx = foe.centerX - f.centerX;
+    f.face(dx >= 0 ? 1 : -1);
+
+    const reach = CONFIG.combat.attack.reach + f.width * 0.5;
+    if (Math.abs(dx) <= reach && Math.abs(foe.centerY - f.centerY) < f.height) {
+      f.attack();
+      return;
+    }
+
+    // Drifted out of reach during the reaction window: close the small gap.
+    if (Math.abs(dx) > this.cfg.preferredRange * 0.9) {
+      const dir = dx >= 0 ? 1 : -1;
+      if (!this._wouldLeaveLedge(dir)) {
+        if (dir > 0) f.moveRight(0.85); else f.moveLeft(0.85);
+      }
+    }
+
+    // Target floating above us: rise to meet it.
+    if (f.isGrounded && foe.centerY < f.centerY - 90 &&
+        this.jumpLock <= 0 && this._rand() < this.cfg.jumpiness) {
+      f.jump();
+      this.jumpLock = 0.6;
+    }
+  }
+
+  /** Close the horizontal gap without walking off the edge. */
+  _approach(foe) {
+    const f = this.f;
+    if (!f.controllable) return;
+
+    const dx  = foe.centerX - f.centerX;
+    const dir = dx >= 0 ? 1 : -1;
+    const gap = Math.abs(dx);
+
+    if (gap > this.cfg.preferredRange) {
+      if (f.isGrounded && this._wouldLeaveLedge(dir)) {
+        // Don't chase off the platform. Face the target, and if it's
+        // hovering above, hop toward the side platform instead.
+        f.face(dir);
+        if (foe.centerY < f.centerY - 40 &&
+            this.jumpLock <= 0 && this._rand() < 0.5) {
+          f.jump();
+          this.jumpLock = 0.6;
+        }
+        return;
+      }
+      // Airborne over the edge? Air control carries us onto the side platform.
+      if (dir > 0) f.moveRight();
+      else         f.moveLeft();
+      return;
+    }
+
+    // In the pocket but not swinging yet: hold, face, and jockey.
+    f.face(dir);
+    if (f.isGrounded && foe.centerY < f.centerY - 90 &&
+        this.jumpLock <= 0 && this._rand() < this.cfg.jumpiness) {
+      f.jump();
+      this.jumpLock = 0.7;
+    }
+  }
+
+  /** Think-pause: stay oriented toward the target and coast to a stop. */
+  _wait(foe) {
+    const f = this.f;
+    if (!f.controllable) return;
+    f.face(foe.centerX >= f.centerX ? 1 : -1);
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   6a. TOURNAMENT — four competitors, two physical slots, single elimination
+   ----------------------------------------------------------------------------
+   There are only ever TWO Fighters alive at once (the "slots"). Competitors
+   rotate through those slots match to match. Each competitor owns a
+   persistent `tuning` block, and the slot fighter borrows it BY REFERENCE,
+   so control-panel edits stick to a competitor across the whole tournament.
+
+   Bracket: 4 -> 2 -> 1
+     SEMIFINALS : ALPHA vs BRAVO, CHARLIE vs DELTA
+     GRAND FINAL: winner vs winner
+     CHAMPION   : crowned, banner, then the whole thing loops forever.
+
+   Each match is a stock battle: first to lose CONFIG.match.stocks (3) is out.
+   ------------------------------------------------------------------------ */
+
+/**
+ * The sunset-and-forest roster. The first two are the headline pairing, so
+ * SEMIFINAL 1 is always Orange (Sun Warrior) vs Green (Jade Strider).
+ * `accent` drives the glowing visor and chest emblem.
+ */
+const ROSTER_DEFS = Object.freeze([
+  Object.freeze({ name: "SUN WARRIOR",  color: "#ff8a3d", accent: "#fff3c4", preset: "RUSHDOWN"  }),
+  Object.freeze({ name: "JADE STRIDER", color: "#2fbf7a", accent: "#dcfff0", preset: "TRICKSTER" }),
+  Object.freeze({ name: "DUSK RONIN",   color: "#e0629b", accent: "#ffe6f3", preset: "ZONER"     }),
+  Object.freeze({ name: "THORN WARDEN", color: "#7fa93a", accent: "#f4ffd8", preset: "BRUISER"   })
+]);
+
+const TOURNEY_PHASE = Object.freeze({
+  INTRO:    "INTRO",
+  FIGHTING: "FIGHTING",
+  RESULT:   "RESULT",
+  CHAMPION: "CHAMPION"
+});
+
+/** Build the persistent, mutable competitor records (one per roster slot). */
+function buildRoster() {
+  return ROSTER_DEFS.map((def) => {
+    const tuning = defaultTuning();
+    const preset = AI_PRESETS[def.preset];
+    if (preset && preset.tuning) Object.assign(tuning, preset.tuning);
+    return {
+      name:       def.name,
+      color:      def.color,
+      accent:     def.accent || "#ffffff",
+      preset:     def.preset,
+      tuning,                          // shared by reference with the slot Fighter
+      stocksLeft: CONFIG.match.stocks,
+      wins:       0,
+      losses:     0
+    };
+  });
+}
+
+class Tournament {
+  constructor(game) {
+    this.game = game;
+    this.roster = buildRoster();
+    this.slots = [null, null];         // [competitorA, competitorB] on stage now
+    this.seedCounter = 1;
+    this.tournamentNumber = 0;
+    this.phase = TOURNEY_PHASE.INTRO;
+    this.phaseTime = 0;
+    this.rounds = [];
+    this.roundIndex = 0;
+    this.matchIndex = 0;
+    this.resultWinner = null;
+    this.champion = null;
+
+    this.startTournament();
+  }
+
+  /* ---- queries ---- */
+  isFighting()   { return this.phase === TOURNEY_PHASE.FIGHTING; }
+  currentRound() { return this.rounds[this.roundIndex] || null; }
+  currentMatch() {
+    const r = this.currentRound();
+    return r ? r.matches[this.matchIndex] : null;
+  }
+  slotOf(competitor) { return this.slots.indexOf(competitor); }
+
+  /* ---- tournament lifecycle ---- */
+  startTournament() {
+    this.tournamentNumber += 1;
+    for (const c of this.roster) { c.wins = 0; c.losses = 0; }
+
+    this.rounds = [
+      { name: "SEMIFINALS", matches: [
+        { a: this.roster[0], b: this.roster[1], winner: null },
+        { a: this.roster[2], b: this.roster[3], winner: null }
+      ]},
+      { name: "GRAND FINAL", matches: [
+        { a: null, b: null, winner: null }
+      ]}
+    ];
+    this.roundIndex = 0;
+    this.matchIndex = 0;
+    this.champion = null;
+    this.resultWinner = null;
+
+    this._startMatch();
+  }
+
+  /** Deterministic-but-changing seed stream for the brains. */
+  _nextSeed() {
+    this.seedCounter = (this.seedCounter * 1103515245 + 12345) >>> 0;
+    return this.seedCounter;
+  }
+
+  _startMatch() {
+    const match = this.currentMatch();
+    this.slots = [match.a, match.b];
+    this._assignSlot(0, match.a);
+    this._assignSlot(1, match.b);
+    this.phase = TOURNEY_PHASE.INTRO;
+    this.phaseTime = 0;
+    this.resultWinner = null;
+  }
+
+  /**
+   * Drop a competitor into a physical fighter slot: identity, a shared
+   * reference to their persistent tuning, and their personality.
+   */
+  _assignSlot(i, competitor) {
+    const fighter = this.game.slotFighters[i];
+    const brain   = this.game.slotBrains[i];
+
+    fighter.name   = competitor.name;
+    fighter.color  = competitor.color;
+    fighter.accent = competitor.accent;
+    fighter.tuning = competitor.tuning;    // shared ref — panel edits stick
+    fighter.resetMatch();
+
+    competitor.stocksLeft = CONFIG.match.stocks;
+
+    brain.f = fighter;
+    brain.applyPreset(competitor.preset);  // behaviour only; keeps tuning
+    brain.reseed(this._nextSeed());        // fresh RNG so replays differ
+  }
+
+  /** Re-apply a competitor's personality to the live brain, if they're on stage. */
+  refreshBehaviour(competitor) {
+    const i = this.slotOf(competitor);
+    if (i >= 0) this.game.slotBrains[i].applyPreset(competitor.preset);
+  }
+
+  /* ---- per-tick phase timing ---- */
+  update(dt) {
+    this.phaseTime += dt;
+
+    // Mirror the live stock counts onto the competitors (for the bracket).
+    for (let i = 0; i < 2; i++) {
+      const c = this.slots[i];
+      const f = this.game.slotFighters[i];
+      if (c && f) c.stocksLeft = f.stocksLeft;
+    }
+
+    switch (this.phase) {
+      case TOURNEY_PHASE.INTRO:
+        if (this.phaseTime >= CONFIG.tournament.introTime) this._beginFighting();
+        break;
+      case TOURNEY_PHASE.RESULT:
+        if (this.phaseTime >= CONFIG.tournament.resultTime) this._advance();
+        break;
+      case TOURNEY_PHASE.CHAMPION:
+        if (this.phaseTime >= CONFIG.tournament.championTime) this.startTournament();
+        break;
+      // FIGHTING is driven by checkElimination() after combat resolves.
+    }
+  }
+
+  _beginFighting() {
+    this.phase = TOURNEY_PHASE.FIGHTING;
+    this.phaseTime = 0;
+  }
+
+  /** Called after combat each tick. Ends the match when someone runs out. */
+  checkElimination() {
+    if (this.phase !== TOURNEY_PHASE.FIGHTING) return;
+
+    const fa = this.game.slotFighters[0];
+    const fb = this.game.slotFighters[1];
+    const outA = fa.stocksLeft <= 0;
+    const outB = fb.stocksLeft <= 0;
+    if (!outA && !outB) return;
+
+    let winner;
+    if (outA && outB) {
+      // Simultaneous double KO: whoever is less damaged steals it.
+      winner = fa.damagePercentage <= fb.damagePercentage ? this.slots[0] : this.slots[1];
+    } else {
+      winner = outA ? this.slots[1] : this.slots[0];
+    }
+    const loser = winner === this.slots[0] ? this.slots[1] : this.slots[0];
+
+    this.currentMatch().winner = winner;
+    winner.wins += 1;
+    loser.losses += 1;
+    this.resultWinner = winner;
+
+    this.phase = TOURNEY_PHASE.RESULT;
+    this.phaseTime = 0;
+  }
+
+  _advance() {
+    const round = this.currentRound();
+    this.matchIndex += 1;
+
+    if (this.matchIndex < round.matches.length) { this._startMatch(); return; }
+
+    // Round complete — seed the next round from this round's winners.
+    this._seedNextRound();
+    this.roundIndex += 1;
+    this.matchIndex = 0;
+
+    if (this.roundIndex >= this.rounds.length) {
+      const final = this.rounds[this.rounds.length - 1].matches[0];
+      this.champion = final.winner;
+      this.phase = TOURNEY_PHASE.CHAMPION;
+      this.phaseTime = 0;
+      return;
+    }
+    this._startMatch();
+  }
+
+  _seedNextRound() {
+    const round = this.currentRound();
+    const next = this.rounds[this.roundIndex + 1];
+    if (!next) return;
+    const winners = round.matches.map((m) => m.winner);
+    next.matches.forEach((m, i) => {
+      m.a = winners[i * 2] || null;
+      m.b = winners[i * 2 + 1] || null;
+    });
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   6b. BRACKET VIEW — the DOM bracket rendered beside the canvas
+   ------------------------------------------------------------------------ */
+class BracketView {
+  constructor(root, tournament) {
+    this.root = root;
+    this.tournament = tournament;
+    this.signature = null;
+    this._buildSkeleton();
+  }
+
+  _buildSkeleton() {
+    this.root.textContent = "";
+
+    const head = document.createElement("div");
+    head.className = "br-head";
+    this.titleEl = document.createElement("span");
+    this.titleEl.className = "br-title";
+    this.titleEl.textContent = "TOURNAMENT";
+    this.numberEl = document.createElement("span");
+    this.numberEl.className = "br-number";
+    head.append(this.titleEl, this.numberEl);
+
+    this.roundsEl = document.createElement("div");
+    this.roundsEl.className = "br-rounds";
+
+    this.root.append(head, this.roundsEl);
+  }
+
+  /** Cheap change detection: only touch the DOM when something actually moved. */
+  tick() {
+    const sig = this._signature();
+    if (sig === this.signature) return;
+    this.signature = sig;
+    this._render();
+  }
+
+  _signature() {
+    const t = this.tournament;
+    let s = t.tournamentNumber + "|" + t.phase + "|" + t.roundIndex + "|" + t.matchIndex;
+    for (const round of t.rounds) {
+      for (const m of round.matches) {
+        s += "|" + (m.a ? m.a.name + m.a.stocksLeft : "-") +
+                   (m.b ? m.b.name + m.b.stocksLeft : "-") +
+                   ">" + (m.winner ? m.winner.name : "-");
+      }
+    }
+    return s;
+  }
+
+  _render() {
+    const t = this.tournament;
+    this.numberEl.textContent = "#" + t.tournamentNumber;
+    this.roundsEl.textContent = "";
+
+    t.rounds.forEach((round, ri) => {
+      const col = document.createElement("div");
+      col.className = "br-col";
+
+      const title = document.createElement("div");
+      title.className = "br-col-title";
+      title.textContent = round.name;
+      col.appendChild(title);
+
+      for (const m of round.matches) {
+        col.appendChild(this._matchCard(m, ri === t.roundIndex));
+      }
+      this.roundsEl.appendChild(col);
+    });
+
+    // Champion column
+    const col = document.createElement("div");
+    col.className = "br-col br-col-champ";
+    const title = document.createElement("div");
+    title.className = "br-col-title";
+    title.textContent = "CHAMPION";
+    col.appendChild(title);
+
+    const champ = document.createElement("div");
+    champ.className = "br-champ";
+    if (t.champion) {
+      champ.classList.add("crowned");
+      champ.style.color = t.champion.color;
+      champ.style.borderColor = t.champion.color;
+      champ.textContent = t.champion.name;
+    } else {
+      champ.textContent = "? ? ?";
+    }
+    col.appendChild(champ);
+    this.roundsEl.appendChild(col);
+  }
+
+  _matchCard(match, isCurrentRound) {
+    const card = document.createElement("div");
+    card.className = "br-match";
+
+    if (isCurrentRound && this.tournament.currentMatch() === match &&
+        this.tournament.phase !== TOURNEY_PHASE.CHAMPION) {
+      card.classList.add("live");
+    }
+
+    for (const side of [match.a, match.b]) {
+      const row = document.createElement("div");
+      row.className = "br-slot";
+
+      if (!side) {
+        const tbd = document.createElement("span");
+        tbd.className = "br-nm tbd";
+        tbd.textContent = "· · ·";
+        row.appendChild(tbd);
+        card.appendChild(row);
+        continue;
+      }
+
+      if (match.winner === side) row.classList.add("win");
+      else if (match.winner) row.classList.add("lose");
+
+      const dot = document.createElement("span");
+      dot.className = "br-dot";
+      dot.style.background = side.color;
+
+      const nm = document.createElement("span");
+      nm.className = "br-nm";
+      nm.textContent = side.name;
+
+      const pips = document.createElement("span");
+      pips.className = "br-pips";
+      pips.textContent = this._pips(side);
+
+      row.append(dot, nm, pips);
+      card.appendChild(row);
+    }
+    return card;
+  }
+
+  _pips(competitor) {
+    const max = CONFIG.match.stocks;
+    const left = Math.max(0, Math.min(max, competitor.stocksLeft));
+    let s = "";
+    for (let i = 0; i < max; i++) s += i < left ? "●" : "○";
+    return s;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   6c. CONTROL PANEL — plain HTML sliders/dropdowns bound to live game state
+   ----------------------------------------------------------------------------
+   The panel owns no state of its own: every control writes directly into
+   `fighter.tuning`, which the physics and AI already read each tick. Moving a
+   slider therefore takes effect on the very next frame.
+   ------------------------------------------------------------------------ */
+class ControlPanel {
+  /**
+   * The panel binds to COMPETITORS, not to fighter slots. Competitors rotate
+   * through the two slots as the bracket advances, but their tuning blocks are
+   * persistent — so this panel never needs rebuilding, and your edits stick to
+   * a fighter across every match of every tournament.
+   *
+   * @param {HTMLElement} root  Container element (the <aside>).
+   * @param {Game}        game
+   */
+  constructor(root, game) {
+    this.root = root;
+    this.game = game;
+    this.entries = [];   // { competitor, select, chip, rows[] }
+    this._build();
+  }
+
+  /* ---- construction ---- */
+  _build() {
+    this.root.textContent = "";
+    for (const competitor of this.game.tournament.roster) {
+      this.root.appendChild(this._buildCompetitorPanel(competitor));
+    }
+
+    const note = document.createElement("p");
+    note.className = "panel-hint";
+    note.textContent = "Sliders apply live and persist per fighter across every match. A preset reloads that fighter's full loadout.";
+    this.root.appendChild(note);
+  }
+
+  _buildCompetitorPanel(competitor) {
+    const panel = document.createElement("section");
+    panel.className = "bot-panel";
+    panel.style.setProperty("--accent", competitor.color);
+
+    /* Header: name + a live status chip. */
+    const head = document.createElement("header");
+    const dot  = document.createElement("span");
+    dot.className = "dot";
+    const name = document.createElement("span");
+    name.className = "name";
+    name.textContent = competitor.name;
+    const chip = document.createElement("span");
+    chip.className = "chip";
+    chip.textContent = "BENCH";
+    head.append(dot, name, chip);
+    panel.appendChild(head);
+
+    /* Preset dropdown. */
+    const presetRow = document.createElement("label");
+    presetRow.className = "row";
+    const presetKey = document.createElement("span");
+    presetKey.className = "k";
+    presetKey.textContent = "Preset";
+    const select = document.createElement("select");
+    for (const key of Object.keys(AI_PRESETS)) {
+      const opt = document.createElement("option");
+      opt.value = key;
+      opt.textContent = AI_PRESETS[key].label;
+      select.appendChild(opt);
+    }
+    select.value = competitor.preset;
+    select.addEventListener("change", () => {
+      competitor.preset = select.value;
+      this._loadPresetTuning(competitor);
+      this.game.tournament.refreshBehaviour(competitor);
+      this.syncCompetitor(competitor);
+    });
+    presetRow.append(presetKey, select);
+    panel.appendChild(presetRow);
+
+    /* The five tunable sliders. */
+    const entry = { competitor, select, chip, rows: [] };
+    for (const spec of SLIDER_SPEC) {
+      panel.appendChild(this._buildSlider(entry, spec));
+    }
+
+    /* Reset back to the selected preset's loadout. */
+    const reset = document.createElement("button");
+    reset.type = "button";
+    reset.className = "reset";
+    reset.textContent = "Reset to preset";
+    reset.addEventListener("click", () => {
+      this._loadPresetTuning(competitor);
+      this.game.tournament.refreshBehaviour(competitor);
+      this.syncCompetitor(competitor);
+    });
+    panel.appendChild(reset);
+
+    this.entries.push(entry);
+    return panel;
+  }
+
+  _loadPresetTuning(competitor) {
+    const preset = AI_PRESETS[competitor.preset];
+    if (preset && preset.tuning) Object.assign(competitor.tuning, preset.tuning);
+  }
+
+  _buildSlider(entry, spec) {
+    const competitor = entry.competitor;
+
+    const wrap = document.createElement("div");
+    wrap.className = "slider";
+
+    const label = document.createElement("div");
+    label.className = "row";
+    const k = document.createElement("span");
+    k.className = "k";
+    k.textContent = spec.label;
+    const v = document.createElement("span");
+    v.className = "v";
+    label.append(k, v);
+
+    const input = document.createElement("input");
+    input.type = "range";
+    input.min = String(spec.min);
+    input.max = String(spec.max);
+    input.step = String(spec.step);
+    input.value = String(competitor.tuning[spec.key]);
+    input.setAttribute("aria-label", competitor.name + " " + spec.label);
+
+    const derive = document.createElement("div");
+    derive.className = "derive";
+
+    const row = { competitor, key: spec.key, spec, input, valueEl: v, deriveEl: derive };
+
+    input.addEventListener("input", () => {
+      competitor.tuning[spec.key] = parseFloat(input.value);
+      this._paint(row);
+    });
+
+    wrap.append(label, input, derive);
+    entry.rows.push(row);
+    this._paint(row);
+    return wrap;
+  }
+
+  /* ---- syncing ---- */
+
+  _paint(row) {
+    const value = row.competitor.tuning[row.key];
+    row.valueEl.textContent = row.spec.fmt(value);
+    row.deriveEl.textContent = row.spec.derive(value);
+  }
+
+  /** Pull tuning back out of the competitor (after a preset swap/reset). */
+  syncCompetitor(competitor) {
+    for (const entry of this.entries) {
+      if (entry.competitor !== competitor) continue;
+      for (const row of entry.rows) {
+        row.input.value = String(competitor.tuning[row.key]);
+        this._paint(row);
+      }
+    }
+  }
+
+  /** Per-frame: keep the status chips in sync with the live brains. */
+  tick() {
+    const t = this.game.tournament;
+    for (const entry of this.entries) {
+      const slot = t.slotOf(entry.competitor);
+
+      let state;
+      if (slot < 0)                        state = "BENCH";
+      else if (t.isFighting())             state = this.game.slotBrains[slot].state;
+      else if (t.phase === TOURNEY_PHASE.INTRO) state = "READY";
+      else                                 state = "\u2014";
+
+      if (entry.chip.textContent !== state) entry.chip.textContent = state;
+      const color = AI_STATE_COLORS[state] || (slot >= 0 ? "#e6f1ff" : "#5b7089");
+      if (entry.chip.style.color !== color) entry.chip.style.color = color;
+    }
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   7. GAME — canvas wiring, fixed-timestep loop, HUD, render
+   ------------------------------------------------------------------------ */
+class Game {
+  constructor(canvas) {
+    this.canvas = canvas;
+    this.ctx = canvas.getContext("2d");
+    this.W = CONFIG.canvas.width;
+    this.H = CONFIG.canvas.height;
+
+    // Only TWO physical fighters ever exist (the "slots"). The tournament
+    // rotates the four competitors through them, match by match. Identity and
+    // tuning are assigned per match — see Tournament._assignSlot().
+    this.slotFighters = [
+      new Fighter({ name: "", color: "#e6f1ff", spawn: STAGE.spawns.left,  facing:  1 }),
+      new Fighter({ name: "", color: "#e6f1ff", spawn: STAGE.spawns.right, facing: -1 })
+    ];
+    this.slotBrains = [
+      new AIBrain(this.slotFighters[0], "RUSHDOWN", 7),
+      new AIBrain(this.slotFighters[1], "ZONER",   13)
+    ];
+
+    this.showHitboxes = true;
+    this.showDebug = true;
+    this.accumulator = 0;
+    this.lastTime = 0;
+    this.elapsed = 0;
+
+    // The tournament owns the roster, bracket and match flow. Constructed
+    // before the panel, which is built from the tournament's roster.
+    this.tournament = new Tournament(this);
+
+    // DOM views. Guarded so the simulation can still be constructed headlessly
+    // (no DOM) in tests.
+    const controlsRoot = document.getElementById("controls");
+    this.panel = controlsRoot ? new ControlPanel(controlsRoot, this) : null;
+
+    const bracketRoot = document.getElementById("bracket");
+    this.bracket = bracketRoot ? new BracketView(bracketRoot, this.tournament) : null;
+
+    this._bindInput();
+  }
+
+  _bindInput() {
+    window.addEventListener("keydown", (e) => {
+      if (e.key === "h" || e.key === "H") this.showHitboxes = !this.showHitboxes;
+      if (e.key === "b" || e.key === "B") this.showDebug = !this.showDebug;
+    });
+  }
+
+  start() {
+    this.lastTime = performance.now();
+    requestAnimationFrame(this._frame);
+  }
+
+  _frame = (now) => {
+    // Delta time in seconds, clamped so a tab-switch stall can't explode physics.
+    let dt = (now - this.lastTime) / 1000;
+    this.lastTime = now;
+    if (dt > 0.25) dt = 0.25;
+
+    this.accumulator += dt;
+
+    // Fixed-timestep simulation for deterministic, stable physics.
+    let steps = 0;
+    while (this.accumulator >= FIXED_DT && steps < 6) {
+      this.step(FIXED_DT);
+      this.accumulator -= FIXED_DT;
+      steps++;
+    }
+    if (steps === 6) this.accumulator = 0; // shed backlog after a big stall
+
+    this.render();
+    requestAnimationFrame(this._frame);
+  };
+
+  /** One fixed simulation tick. */
+  step(dt) {
+    this.elapsed += dt;
+
+    // 1) Tournament phase timing (banners, advancement, looping).
+    this.tournament.update(dt);
+
+    const fighting = this.tournament.isFighting();
+
+    // 2) AI brains decide intent — but only during a live match. Between
+    //    rounds the fighters just settle onto the platform, no input.
+    if (fighting) {
+      for (let i = 0; i < 2; i++) {
+        this.slotBrains[i].update(dt, this.slotFighters[1 - i]);
+      }
+    }
+
+    // 3) Physics + fighter state machines. Runs during INTRO too, so a freshly
+    //    spawned fighter falls naturally onto the platform before the bell.
+    //    Frozen during RESULT/CHAMPION: a win shouldn't be spoiled by a stray
+    //    fall costing a stock.
+    if (fighting || this.tournament.phase === TOURNEY_PHASE.INTRO) {
+      for (let i = 0; i < 2; i++) {
+        this.slotFighters[i].update(this.slotFighters[1 - i]);
+      }
+    }
+
+    // 4) Resolve combat, then let the tournament judge the result.
+    if (fighting) {
+      this.slotFighters[0].tryHit(this.slotFighters[1]);
+      this.slotFighters[1].tryHit(this.slotFighters[0]);
+      this.tournament.checkElimination();
+    }
+  }
+
+  /* ---- Render ---- */
+  render() {
+    const ctx = this.ctx;
+
+    this._drawBackground(ctx);
+    this._drawStage(ctx);
+
+    // Active fighters only — the other two competitors are on the bench.
+    for (const f of this.slotFighters) f.draw(ctx, this.showHitboxes);
+
+    this._drawHUD(ctx);
+    this._drawBotPanels(ctx);
+    this._drawTournamentBanner(ctx);
+
+    // Keep the DOM views in step with the simulation.
+    if (this.panel) this.panel.tick();
+    if (this.bracket) this.bracket.tick();
+  }
+
+_drawBackground(ctx) {
+    const W = this.W, H = this.H;
+
+    // Sky: deep purple zenith sweeping down through magenta into warm gold.
+    const sky = ctx.createLinearGradient(0, 0, 0, H);
+    sky.addColorStop(0.00, "#2a1a4a");
+    sky.addColorStop(0.18, "#552f74");
+    sky.addColorStop(0.40, "#a94a6f");
+    sky.addColorStop(0.62, "#e0724d");
+    sky.addColorStop(0.80, "#f7a95e");
+    sky.addColorStop(1.00, "#ffd9a3");
+    ctx.fillStyle = sky;
+    ctx.fillRect(0, 0, W, H);
+
+    // Sun bloom low on the horizon.
+    const sunX = W * 0.5, sunY = H * 0.86;
+    const bloom = ctx.createRadialGradient(sunX, sunY, 20, sunX, sunY, W * 0.62);
+    bloom.addColorStop(0,    "rgba(255,244,205,.85)");
+    bloom.addColorStop(0.22, "rgba(255,206,140,.42)");
+    bloom.addColorStop(0.55, "rgba(255,150,120,.14)");
+    bloom.addColorStop(1,    "rgba(255,120,140,0)");
+    ctx.fillStyle = bloom;
+    ctx.fillRect(0, 0, W, H);
+
+    // Sun disc.
+    const disc = ctx.createRadialGradient(sunX, sunY, 4, sunX, sunY, 96);
+    disc.addColorStop(0,   "rgba(255,252,235,.95)");
+    disc.addColorStop(0.5, "rgba(255,236,180,.55)");
+    disc.addColorStop(1,   "rgba(255,210,140,0)");
+    ctx.fillStyle = disc;
+    ctx.beginPath();
+    ctx.arc(sunX, sunY, 96, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Layered cloud banks.
+    this._drawCloud(ctx, W * 0.18, H * 0.24, 300, 46, 0.16);
+    this._drawCloud(ctx, W * 0.74, H * 0.16, 360, 40, 0.13);
+    this._drawCloud(ctx, W * 0.46, H * 0.40, 460, 52, 0.12);
+    this._drawCloud(ctx, W * 0.86, H * 0.52, 320, 44, 0.14);
+    this._drawCloud(ctx, W * 0.10, H * 0.58, 340, 40, 0.12);
+
+    // Distant ridges, each hazer than the last.
+    this._drawRidge(ctx, H * 0.70, 92, "rgba(96,58,104,.42)", 0.9);
+    this._drawRidge(ctx, H * 0.78, 72, "rgba(74,44,88,.52)",  1.7);
+    this._drawRidge(ctx, H * 0.86, 54, "rgba(52,32,68,.62)",  2.6);
+  }
+
+  /** A soft, wind-stretched cloud bank. */
+  _drawCloud(ctx, x, y, w, h, alpha) {
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    const g = ctx.createRadialGradient(x, y, 1, x, y, w * 0.5);
+    g.addColorStop(0,   "rgba(255,247,235,.95)");
+    g.addColorStop(0.6, "rgba(255,226,206,.45)");
+    g.addColorStop(1,   "rgba(255,214,200,0)");
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.ellipse(x, y, w * 0.5, h, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  /** A jagged silhouette ridge along the horizon. */
+  _drawRidge(ctx, baseY, height, color, seed) {
+    const W = this.W;
+    ctx.save();
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(0, this.H);
+    ctx.lineTo(0, baseY);
+    const step = 84;
+    for (let x = 0; x <= W + step; x += step) {
+      // Deterministic pseudo-noise, so the ridgeline never flickers.
+      const n = Math.sin(x * 0.013 + seed * 2.7) * 0.5 +
+                Math.sin(x * 0.031 + seed * 1.3) * 0.5;
+      ctx.lineTo(x, baseY - (n * 0.5 + 0.5) * height);
+    }
+    ctx.lineTo(W, this.H);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
+  /* --------------------------------------------------------------------
+     Stage — ancient stone masonry, a mossy grass crown, and pillars
+     ------------------------------------------------------------------ */
+  _drawStage(ctx) {
+    // Pillars first, so the main slab overlaps their tops.
+    this._drawPillars(ctx);
+
+    for (const p of STAGE.platforms) if (p.main) this._drawStoneSlab(ctx, p, true);
+    for (const p of STAGE.platforms) if (!p.main) this._drawStoneSlab(ctx, p, false);
+  }
+
+  _drawStoneSlab(ctx, p, isMain) {
+    const grassH = isMain ? 11 : 8;
+
+    // --- stone body ---
+    const stone = ctx.createLinearGradient(0, p.y, 0, p.y + p.h);
+    stone.addColorStop(0,    "#c9c3b4");
+    stone.addColorStop(0.35, "#a89f8d");
+    stone.addColorStop(1,    "#6f6555");
+    ctx.fillStyle = stone;
+    ctx.fillRect(p.x, p.y, p.w, p.h);
+
+    // --- masonry joints: courses + staggered vertical seams ---
+    ctx.save();
+    ctx.strokeStyle = "rgba(60,52,42,.34)";
+    ctx.lineWidth = 1.5;
+    const courses = 2;
+    const block = 46;
+    const bodyTop = p.y + grassH;
+    const bodyH = p.h - grassH;
+    for (let i = 1; i < courses; i++) {
+      const y = bodyTop + (bodyH / courses) * i;
+      ctx.beginPath();
+      ctx.moveTo(p.x, y);
+      ctx.lineTo(p.x + p.w, y);
+      ctx.stroke();
+    }
+    for (let i = 0; i < courses; i++) {
+      const rowTop = bodyTop + (bodyH / courses) * i;
+      const rowBot = bodyTop + (bodyH / courses) * (i + 1);
+      const offset = (i % 2) * block * 0.5;
+      for (let x = p.x + offset; x < p.x + p.w; x += block) {
+        if (x <= p.x + 5) continue;
+        ctx.beginPath();
+        ctx.moveTo(x, rowTop);
+        ctx.lineTo(x, rowBot);
+        ctx.stroke();
+      }
+    }
+    ctx.restore();
+
+    // --- bottom shading so the slab reads as thick ---
+    ctx.save();
+    const shade = ctx.createLinearGradient(0, p.y + p.h * 0.5, 0, p.y + p.h);
+    shade.addColorStop(0, "rgba(50,40,32,0)");
+    shade.addColorStop(1, "rgba(50,40,32,.45)");
+    ctx.fillStyle = shade;
+    ctx.fillRect(p.x, p.y + p.h * 0.5, p.w, p.h * 0.5);
+    ctx.restore();
+
+    // --- mossy grass crown: an organic, gently undulating cap ---
+    const gy = p.y;
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(p.x, gy + grassH);
+    const teeth = Math.max(6, Math.round(p.w / 26));
+    for (let i = 0; i <= teeth; i++) {
+      const t = i / teeth;
+      const wave = Math.sin(t * Math.PI * 3.1) * 2.2;
+      const tuft = (i % 2 === 0) ? -3.4 : 0;
+      ctx.lineTo(p.x + t * p.w, gy + wave + tuft);
+    }
+    ctx.lineTo(p.x + p.w, gy + grassH);
+    ctx.closePath();
+    const grass = ctx.createLinearGradient(0, gy - 4, 0, gy + grassH);
+    grass.addColorStop(0,    "#7ccf62");
+    grass.addColorStop(0.55, "#5aab4c");
+    grass.addColorStop(1,    "#3d7c38");
+    ctx.fillStyle = grass;
+    ctx.fill();
+    ctx.restore();
+
+    // Bright sunlit lip along the grass.
+    ctx.save();
+    ctx.strokeStyle = "rgba(220,255,190,.70)";
+    ctx.lineWidth = 1.8;
+    ctx.beginPath();
+    ctx.moveTo(p.x + 1, gy - 1.5);
+    ctx.lineTo(p.x + p.w - 1, gy - 1.5);
+    ctx.stroke();
+    ctx.restore();
+
+    // A few hanging moss strands under the slab.
+    ctx.save();
+    ctx.fillStyle = "rgba(61,124,56,.55)";
+    for (let x = p.x + 14; x < p.x + p.w - 10; x += 37) {
+      const len = 6 + ((x * 7) % 9);
+      ctx.beginPath();
+      ctx.moveTo(x, p.y + p.h - 1);
+      ctx.lineTo(x + 3.5, p.y + p.h - 1);
+      ctx.lineTo(x + 1.8, p.y + p.h + len);
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  /**
+   * Three angled stone pillars holding the main platform up, running off the
+   * bottom of the frame so the stage reads as an ancient ruin.
+   */
+  _drawPillars(ctx) {
+    const main = STAGE.platforms.find((p) => p.main);
+    if (!main) return;
+
+    const specs = [
+      { x: main.x + main.w * 0.16, w: 54, lean: -12 },
+      { x: main.x + main.w * 0.50, w: 66, lean:   4 },
+      { x: main.x + main.w * 0.84, w: 54, lean:  14 }
+    ];
+
+    for (const s of specs) {
+      const topY   = main.y + main.h - 2;
+      const botY   = this.H + 20;
+      const halfTop = s.w / 2;
+      const halfBot = s.w / 2 + 10;   // flares outward toward the base
+
+      const path = () => {
+        ctx.beginPath();
+        ctx.moveTo(s.x - halfTop, topY);
+        ctx.lineTo(s.x + halfTop, topY);
+        ctx.lineTo(s.x + s.lean + halfBot, botY);
+        ctx.lineTo(s.x + s.lean - halfBot, botY);
+        ctx.closePath();
+      };
+
+      ctx.save();
+
+      const stone = ctx.createLinearGradient(s.x - halfTop, 0, s.x + halfTop, 0);
+      stone.addColorStop(0,    "#6b6152");
+      stone.addColorStop(0.35, "#a89f8d");
+      stone.addColorStop(0.65, "#8d8471");
+      stone.addColorStop(1,    "#5d5445");
+      ctx.fillStyle = stone;
+      path();
+      ctx.fill();
+
+      // Horizontal courses.
+      ctx.strokeStyle = "rgba(58,50,40,.30)";
+      ctx.lineWidth = 1.4;
+      for (let i = 1; i < 6; i++) {
+        const t = i / 6;
+        const y  = topY + (botY - topY) * t;
+        const lx = s.x - halfTop + (s.lean - halfBot + halfTop) * t;
+        const rx = s.x + halfTop + (s.lean + halfBot - halfTop) * t;
+        ctx.beginPath();
+        ctx.moveTo(lx, y);
+        ctx.lineTo(rx, y);
+        ctx.stroke();
+      }
+
+      // Haze the base into the horizon glow.
+      const fade = ctx.createLinearGradient(0, botY - 230, 0, botY);
+      fade.addColorStop(0, "rgba(255,190,130,0)");
+      fade.addColorStop(1, "rgba(255,196,145,.60)");
+      ctx.fillStyle = fade;
+      path();
+      ctx.fill();
+
+      ctx.restore();
+    }
+  }
+
+  /* --------------------------------------------------------------------
+     HUD — classic Smash-style damage readouts along the bottom edge
+     ------------------------------------------------------------------ */
+  _drawHUD(ctx) {
+    const t = this.tournament;
+
+    ctx.save();
+    ctx.textBaseline = "alphabetic";
+    ctx.shadowColor = "rgba(38,16,44,.62)";
+    ctx.shadowBlur = 8;
+
+    // Top centre: which round, which tournament.
+    const round = t.currentRound();
+    ctx.textAlign = "center";
+    ctx.font = uiFont("800 italic", 14);
+    ctx.fillStyle = "rgba(255,253,249,.92)";
+    ctx.fillText(
+      ((round ? round.name : "") + "  ·  TOURNAMENT #" + t.tournamentNumber).toUpperCase(),
+      this.W / 2, 34
+    );
+
+    // Corner key hints, deliberately understated.
+    ctx.textAlign = "left";
+    ctx.font = uiFont("700", 10);
+    ctx.fillStyle = "rgba(255,253,249,.55)";
+    ctx.shadowBlur = 5;
+    ctx.fillText("[H] HITBOXES   [B] AI DEBUG", 20, 24);
+
+    // Bottom centre: the two damage readouts, mirrored around the midpoint.
+    this._drawSlotHUD(ctx, this.slotFighters[0], this.W / 2 - 52, this.H - 66, "right");
+    this._drawSlotHUD(ctx, this.slotFighters[1], this.W / 2 + 52, this.H - 66, "left");
+
+    // Centre rule between them.
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = "rgba(255,255,255,.38)";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(this.W / 2, this.H - 100);
+    ctx.lineTo(this.W / 2, this.H - 30);
+    ctx.stroke();
+
+    ctx.restore();
+  }
+
+  /** Giant italic percentage + name + stock pips, mirrored around centre. */
+  _drawSlotHUD(ctx, fighter, x, y, align) {
+    ctx.textAlign = align;
+    ctx.textBaseline = "alphabetic";
+
+    const pct  = Math.floor(fighter.damagePercentage);
+    const dt   = clamp(fighter.damagePercentage / 130, 0, 1);
+    const fill = damageColor(fighter.damagePercentage);
+
+    // The percentage: big, bold, italic — with a dark keyline so it stays
+    // legible over the bright horizon.
+    ctx.save();
+    ctx.font = uiFont("italic 900", 62);
+    ctx.lineJoin = "round";
+    ctx.lineWidth = 7;
+    ctx.strokeStyle = "rgba(38,16,44,.60)";
+    ctx.shadowBlur = 0;
+    ctx.strokeText(pct + "%", x, y);
+
+    // Glow intensity climbs with damage.
+    ctx.shadowColor = fill;
+    ctx.shadowBlur = 6 + dt * 26;
+    ctx.fillStyle = fill;
+    ctx.fillText(pct + "%", x, y);
+    ctx.restore();
+
+    // Name
+    const nameY = y + 27;
+    ctx.font = uiFont("800 italic", 14);
+    ctx.fillStyle = "rgba(255,253,249,.95)";
+    ctx.shadowColor = "rgba(38,16,44,.6)";
+    ctx.shadowBlur = 7;
+    ctx.fillText(fighter.name, x, nameY);
+
+    // Stock pips, drawn as circles.
+    ctx.shadowBlur = 0;
+    const max   = CONFIG.match.stocks;
+    const alive = Math.max(0, Math.min(max, fighter.stocksLeft));
+    const gap   = 16;
+    const r     = 5;
+    const span  = (max - 1) * gap;
+    const startX = align === "right" ? x - span : x;
+    for (let i = 0; i < max; i++) {
+      const cxp = startX + i * gap;
+      ctx.beginPath();
+      ctx.arc(cxp, nameY + 16, r, 0, Math.PI * 2);
+      if (i < alive) {
+        ctx.fillStyle = "#fffdf9";
+        ctx.fill();
+      } else {
+        ctx.strokeStyle = "rgba(255,253,249,.55)";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+    }
+  }
+
+  /* --------------------------------------------------------------------
+     Tournament banner — INTRO / RESULT / CHAMPION overlays
+     ------------------------------------------------------------------ */
+  _drawTournamentBanner(ctx) {
+    const t = this.tournament;
+    if (t.phase === TOURNEY_PHASE.FIGHTING) return;
+
+    let big = "", small = "", accent = "#fffdf9", scrim = 0.30;
+
+    if (t.phase === TOURNEY_PHASE.INTRO) {
+      const round = t.currentRound();
+      const m = t.currentMatch();
+      big   = (round ? round.name : "").toUpperCase();
+      small = (m && m.a && m.b) ? (m.a.name + "     vs     " + m.b.name) : "";
+    } else if (t.phase === TOURNEY_PHASE.RESULT) {
+      const winner = t.resultWinner;
+      big   = ((winner ? winner.name : "") + " WINS").toUpperCase();
+      small = "ADVANCING";
+      accent = winner ? winner.color : "#fffdf9";
+    } else if (t.phase === TOURNEY_PHASE.CHAMPION) {
+      const champ = t.champion;
+      big   = "★ CHAMPION ★";
+      small = champ ? champ.name : "";
+      accent = champ ? champ.color : "#ffd166";
+      scrim = 0.52;
+    }
+
+    // Gradient veil rather than a flat scrim, to keep the sky breathing.
+    const veil = ctx.createLinearGradient(0, 0, 0, this.H);
+    veil.addColorStop(0, "rgba(30,12,42," + scrim + ")");
+    veil.addColorStop(1, "rgba(62,26,56," + scrim + ")");
+    ctx.fillStyle = veil;
+    ctx.fillRect(0, 0, this.W, this.H);
+
+    const cy = this.H / 2;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.lineJoin = "round";
+
+    // Big italic headline.
+    ctx.font = uiFont("italic 900", 58);
+    ctx.lineWidth = 8;
+    ctx.strokeStyle = "rgba(28,10,36,.55)";
+    ctx.shadowBlur = 0;
+    ctx.strokeText(big, this.W / 2, cy - 14);
+
+    ctx.shadowColor = accent;
+    ctx.shadowBlur = 32;
+    ctx.fillStyle = "#fffdf9";
+    ctx.fillText(big, this.W / 2, cy - 14);
+
+    // Underline sized to the text.
+    const bw = ctx.measureText(big).width;
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = accent;
+    ctx.fillRect(this.W / 2 - bw / 2, cy + 22, bw, 3);
+
+    // Sub-line.
+    if (small) {
+      ctx.font = uiFont("800", 22);
+      ctx.fillStyle = "#fffdf9";
+      ctx.shadowColor = accent;
+      ctx.shadowBlur = 14;
+      ctx.fillText(small, this.W / 2, cy + 56);
+    }
+  }
+
+  /* --------------------------------------------------------------------
+     AI debug overlay — one terminal readout per bot
+     ------------------------------------------------------------------ */
+  _drawBotPanels(ctx) {
+    if (!this.showDebug) return;
+    const w = 268;
+    this._drawBotPanel(ctx, this.slotFighters[0], this.slotBrains[0], 24);
+    this._drawBotPanel(ctx, this.slotFighters[1], this.slotBrains[1], this.W - 24 - w);
+  }
+
+  /**
+   * Draws the live decision state of a single brain: current AI state,
+   * distance to the enemy, damage, air status, and think timer.
+   */
+  _drawBotPanel(ctx, fighter, brain, x) {
+    const w = 268;
+    const h = 166;
+    const y = this.H - h - 26;
+
+    const stateColor = AI_STATE_COLORS[brain.state] || "#fffdf9";
+
+    ctx.save();
+
+    // Frosted-glass card, matching the DOM panels.
+    ctx.beginPath();
+    ctx.roundRect(x, y, w, h, 12);
+    ctx.fillStyle = "rgba(255,255,255,.13)";
+    ctx.fill();
+    ctx.lineWidth = 1.2;
+    ctx.strokeStyle = "rgba(255,255,255,.46)";
+    ctx.stroke();
+
+    // Header strip, tinted to the fighter.
+    ctx.save();
+    ctx.beginPath();
+    ctx.roundRect(x, y, w, 27, 12);
+    ctx.clip();
+    ctx.fillStyle = rgba(fighter.color, 0.34);
+    ctx.fillRect(x, y, w, 27);
+    ctx.restore();
+
+    ctx.textBaseline = "middle";
+    ctx.shadowColor = "rgba(34,12,42,.55)";
+    ctx.shadowBlur = 6;
+
+    ctx.font = uiFont("800", 12);
+    ctx.textAlign = "left";
+    ctx.fillStyle = "#fffdf9";
+    ctx.fillText(fighter.name, x + 13, y + 14);
+
+    ctx.textAlign = "right";
+    ctx.font = uiFont("700", 11);
+    ctx.fillStyle = "rgba(255,253,249,.75)";
+    ctx.fillText(brain.label, x + w - 13, y + 14);
+
+    // Live rows
+    const airLeft = CONFIG.fighter.maxJumps - fighter.jumpsUsed;
+    const rows = [
+      ["AI STATE",  brain.state, stateColor],
+      ["DISTANCE",  Math.round(brain.distance) + " px", "#fffdf9"],
+      ["DAMAGE",    Math.floor(fighter.damagePercentage) + "%", damageColor(fighter.damagePercentage)],
+      ["AIRBORNE",  fighter.isGrounded ? "no" : "yes  (" + airLeft + " air)", "#fffdf9"],
+      ["THINK",     Math.max(0, brain.decisionTimer).toFixed(2) + "s", "#fffdf9"]
+    ];
+
+    let ry = y + 48;
+    for (const row of rows) {
+      ctx.font = uiFont("700", 11);
+      ctx.textAlign = "left";
+      ctx.fillStyle = "rgba(255,253,249,.62)";
+      ctx.fillText(row[0], x + 13, ry);
+
+      ctx.font = uiFont("800", 11);
+      ctx.textAlign = "right";
+      ctx.fillStyle = row[2];
+      ctx.fillText(row[1], x + w - 13, ry);
+      ry += 21;
+    }
+
+    // Last transition note
+    ctx.font = uiFont("600", 10);
+    ctx.textAlign = "left";
+    ctx.fillStyle = "rgba(255,253,249,.48)";
+    ctx.fillText("» " + (brain.lastTransition || "—"), x + 13, ry + 3);
+
+    ctx.restore();
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   8. BOOT
+   ------------------------------------------------------------------------ */
+const canvas = document.getElementById("game");
+const game = new Game(canvas);
+game.start();
+
+// Expose for console poking / tuning the brains live.
+window.__NEON_BRAWL__ = {
+  game, CONFIG, STAGE, STATE, Fighter,
+  AIBrain, AI_STATE, AI_PRESETS, AI_STATE_COLORS,
+  ControlPanel, SLIDER_SPEC, defaultTuning,
+  Tournament, BracketView, TOURNEY_PHASE, ROSTER_DEFS,
+  damageColor, mixHex, rgba, hexToRgb, UI_FONT
+};
+</script>
+</body>
+</html>
