@@ -26,3 +26,4 @@ Everything is contained neatly inside a single ecosystem for frictionless editin
 
 
 Fully vibecoded with Deepseek v4.1 flash.
+This is only a beta/alpha version of the game, so expect more to come!
